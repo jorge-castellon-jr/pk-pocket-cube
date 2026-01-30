@@ -110,7 +110,7 @@ function DatabasePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-blue-950/80 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-blue-950/90 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="text-white/70 hover:text-white text-sm">
             ← Home

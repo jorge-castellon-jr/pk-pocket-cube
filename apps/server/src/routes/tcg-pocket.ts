@@ -50,7 +50,10 @@ function normalizePokemonName(name: string) {
     .toLowerCase()
     .replace(/[\u2019']/g, "")
     .replace(/\./g, "")
-    .replace(/\s+/g, "-");
+    .replace(/\bex\b/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function findEvolutionNode(

@@ -20,6 +20,9 @@ import {
   Hexagon,
   Circle,
   Eye,
+  Diamond,
+  Crown,
+  Star,
 } from "lucide-react";
 import { normalizePokemonName } from "../api/pokeapi";
 
@@ -127,7 +130,7 @@ function CardDetailPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Detail label="Set" value={card.set?.name} />
-            <Detail label="Rarity" value={card.rarity} />
+            <RarityDetail rarity={card.rarity} />
             <Detail label="HP" value={card.hp ? String(card.hp) : undefined} />
             <Detail label="Stage" value={card.stage} />
             <Detail label="Types" value={card.types?.join(", ")} />
@@ -143,25 +146,29 @@ function CardDetailPage() {
                   <div key={`${attack.name ?? "attack"}-${idx}`} className="text-sm">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{attack.name}</span>
-                      {attack.damage && (
-                        <span className="text-yellow-200">{attack.damage}</span>
-                      )}
-                    </div>
-                    {attack.cost && attack.cost.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {attack.cost.map((cost, costIndex) => (
-                          <span
-                            key={`${cost}-${costIndex}`}
-                            title={cost}
-                            aria-label={cost}
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${getCostIconClass(cost)}`}
-                          >
-                            <EnergyIcon type={cost} />
-                            <span className="sr-only">{cost}</span>
+                      <div className="flex items-center gap-2">
+                        {attack.cost && attack.cost.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {attack.cost.map((cost, costIndex) => (
+                              <span
+                                key={`${cost}-${costIndex}`}
+                                title={cost}
+                                aria-label={cost}
+                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${getCostIconClass(cost)}`}
+                              >
+                                <EnergyIcon type={cost} />
+                                <span className="sr-only">{cost}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {attack.damage && (
+                          <span className="text-yellow-200 text-lg font-bold">
+                            {attack.damage}
                           </span>
-                        ))}
+                        )}
                       </div>
-                    )}
+                    </div>
                     {attack.effect && (
                       <p className="text-white/70 mt-1">{attack.effect}</p>
                     )}
@@ -254,6 +261,80 @@ function Detail({ label, value }: { label: string; value?: string }) {
   );
 }
 
+function RarityDetail({ rarity }: { rarity?: string }) {
+  const parsed = parseRarity(rarity);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <p className="text-xs uppercase tracking-[0.25em] text-white/60">
+        Rarity
+      </p>
+      {parsed ? (
+        <div className="mt-2 flex items-center gap-1">
+          {Array.from({ length: parsed.count }).map((_, index) => (
+            <span
+              key={`${parsed.type}-${index}`}
+              className={`inline-flex h-5 w-5 items-center justify-center ${parsed.className}`}
+            >
+              <SolidIcon Icon={parsed.Icon} />
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm font-semibold mt-2">{rarity ?? "—"}</p>
+      )}
+    </div>
+  );
+}
+
+function parseRarity(rarity?: string) {
+  if (!rarity) return null;
+  const value = rarity.toLowerCase();
+  const count =
+    value.includes("one") ? 1 :
+    value.includes("two") ? 2 :
+    value.includes("three") ? 3 :
+    value.includes("four") ? 4 :
+    value.includes("five") ? 5 : 1;
+
+  if (value.includes("diamond")) {
+    return {
+      type: "diamond",
+      Icon: Diamond,
+      count,
+      label: rarity,
+      className: "text-sky-200",
+    };
+  }
+  if (value.includes("star")) {
+    return {
+      type: "star",
+      Icon: Star,
+      count,
+      label: rarity,
+      className: "text-yellow-200",
+    };
+  }
+  if (value.includes("shiny")) {
+    return {
+      type: "shiny",
+      Icon: Sparkles,
+      count,
+      label: rarity,
+      className: "text-emerald-200",
+    };
+  }
+  if (value.includes("crown")) {
+    return {
+      type: "crown",
+      Icon: Crown,
+      count,
+      label: rarity,
+      className: "text-amber-200",
+    };
+  }
+  return null;
+}
+
 function getCostIconClass(cost: string) {
   const normalized = cost.toLowerCase();
   switch (normalized) {
@@ -304,7 +385,7 @@ function EnergyIcon({ type }: { type: string }) {
     case "dragon":
       return <SolidIcon Icon={Hexagon} />;
     case "colorless":
-      return <SolidIcon Icon={Sparkles} />;
+      return <OutlineIcon Icon={Diamond} />;
     default:
       return <SolidIcon Icon={Circle} />;
   }
@@ -325,6 +406,7 @@ function OutlineIcon({ Icon }: { Icon: typeof Leaf }) {
     <Icon className="h-4 w-4 text-white/90" strokeWidth={2} fill="none" />
   );
 }
+
 
 function EvolutionCardLink({
   id,
