@@ -9,6 +9,7 @@ import {
 } from "../api/tcgdex";
 import { Button } from "@repo/ui/button";
 import { z } from "zod";
+import { Diamond, Star, Crown, Sparkles } from "lucide-react";
 
 const searchSchema = z.object({
   set: z.string().optional(),
@@ -107,6 +108,7 @@ function DatabasePage() {
   const rarityOptions = Array.from(
     new Set(cards.map((card) => card.rarity).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b));
+  const sortedRarities = sortRarities(rarityOptions);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
@@ -127,78 +129,91 @@ function DatabasePage() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <p className="text-sm text-white/70">Browse every TCG Pocket card.</p>
-            <p className="text-lg font-semibold">All sets. All cards.</p>
-          </div>
-          <div className="flex flex-wrap gap-3 items-center">
-            <input
-              value={searchQuery}
-              onChange={(e) =>
-                navigate({
-                  search: (prev) => ({
-                    ...prev,
-                    q: e.target.value || undefined,
-                  }),
-                })
-              }
-              placeholder="Search by name or ID"
-              className="w-48 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/50"
-            />
-            <select
-              className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-              value={selectedRarity}
-              onChange={(e) =>
-                navigate({
-                  search: (prev) => ({
-                    ...prev,
-                    rarity: e.target.value === "all" ? undefined : e.target.value,
-                  }),
-                })
-              }
-            >
-              <option value="all">All Rarities</option>
-              {rarityOptions.map((rarity) => (
-                <option key={rarity} value={rarity}>
-                  {rarity}
-                </option>
-              ))}
-            </select>
-            <div className="text-xs uppercase tracking-[0.25em] text-white/60">
-              Sort
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-4">
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="text-sm text-white/70">Browse every TCG Pocket card.</p>
+              <p className="text-lg font-semibold">All sets. All cards.</p>
             </div>
-            <select
-              className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-              value={sortBy}
-              onChange={(e) =>
-                navigate({
-                  search: (prev) => ({
-                    ...prev,
-                    sort: e.target.value as "name" | "set" | "id",
-                  }),
-                })
-              }
-            >
-              <option value="name">Name</option>
-              <option value="set">Set</option>
-              <option value="id">Card ID</option>
-            </select>
-            <select
-              className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-              value={sortOrder}
-              onChange={(e) =>
-                navigate({
-                  search: (prev) => ({
-                    ...prev,
-                    order: e.target.value as "asc" | "desc",
-                  }),
-                })
-              }
-            >
-              <option value="asc">A → Z</option>
-              <option value="desc">Z → A</option>
-            </select>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <select
+                  className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
+                  value={sortBy}
+                  onChange={(e) =>
+                    navigate({
+                      search: (prev) => ({
+                        ...prev,
+                        sort: e.target.value as "name" | "set" | "id",
+                      }),
+                    })
+                  }
+                >
+                  <option value="name">Name</option>
+                  <option value="set">Set</option>
+                  <option value="id">Card ID</option>
+                </select>
+                <select
+                  className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
+                  value={sortOrder}
+                  onChange={(e) =>
+                    navigate({
+                      search: (prev) => ({
+                        ...prev,
+                        order: e.target.value as "asc" | "desc",
+                      }),
+                    })
+                  }
+                >
+                  <option value="asc">A → Z</option>
+                  <option value="desc">Z → A</option>
+                </select>
+              </div>
+              <div className="flex flex-1 flex-wrap items-center gap-3">
+                <input
+                  value={searchQuery}
+                  onChange={(e) =>
+                    navigate({
+                      search: (prev) => ({
+                        ...prev,
+                        q: e.target.value || undefined,
+                      }),
+                    })
+                  }
+                  placeholder="Search by name or ID"
+                  className="w-full sm:w-64 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/50"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <RarityChip
+                    rarity="all"
+                    selected={selectedRarity === "all"}
+                    onSelect={(value) =>
+                      navigate({
+                        search: (prev) => ({
+                          ...prev,
+                          rarity: value === "all" ? undefined : value,
+                        }),
+                      })
+                    }
+                  />
+                  {sortedRarities.map((rarity) => (
+                    <RarityChip
+                      key={rarity}
+                      rarity={rarity}
+                      selected={selectedRarity === rarity}
+                      onSelect={(value) =>
+                        navigate({
+                          search: (prev) => ({
+                            ...prev,
+                            rarity: value,
+                          }),
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="mb-10">
@@ -341,4 +356,111 @@ function CardItem({ card }: { card: TCGdexCardWithSet }) {
       </div>
     </Link>
   );
+}
+
+function RarityChip({
+  rarity,
+  selected,
+  onSelect,
+}: {
+  rarity: string;
+  selected: boolean;
+  onSelect: (rarity: string) => void;
+}) {
+  const parsed = parseRarity(rarity);
+  const isAll = rarity === "all";
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(rarity)}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] transition ${
+        selected
+          ? "border-yellow-200/70 bg-yellow-200/15 text-yellow-100"
+          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+      }`}
+    >
+      {parsed && !isAll && (
+        <span className="flex items-center gap-1">
+          {Array.from({ length: parsed.count }).map((_, index) => (
+            <parsed.Icon
+              key={`${parsed.type}-${index}`}
+              className={`h-3.5 w-3.5 ${parsed.className}`}
+              stroke="none"
+              fill="currentColor"
+            />
+          ))}
+        </span>
+      )}
+      {isAll && <span>All</span>}
+      {!isAll && !parsed && <span>{rarity}</span>}
+    </button>
+  );
+}
+
+function parseRarity(rarity: string) {
+  const value = rarity.toLowerCase();
+  const count =
+    value.includes("one") ? 1 :
+    value.includes("two") ? 2 :
+    value.includes("three") ? 3 :
+    value.includes("four") ? 4 :
+    value.includes("five") ? 5 : 1;
+
+  if (value.includes("diamond")) {
+    return {
+      type: "diamond",
+      Icon: Diamond,
+      count,
+      label: rarity,
+      className: "text-sky-200",
+    };
+  }
+  if (value.includes("star")) {
+    return {
+      type: "star",
+      Icon: Star,
+      count,
+      label: rarity,
+      className: "text-yellow-200",
+    };
+  }
+  if (value.includes("shiny")) {
+    return {
+      type: "shiny",
+      Icon: Sparkles,
+      count,
+      label: rarity,
+      className: "text-emerald-200",
+    };
+  }
+  if (value.includes("crown")) {
+    return {
+      type: "crown",
+      Icon: Crown,
+      count,
+      label: rarity,
+      className: "text-amber-200",
+    };
+  }
+  return null;
+}
+
+function sortRarities(rarities: string[]) {
+  const priority = (rarity: string) => {
+    const value = rarity.toLowerCase();
+    if (value.includes("diamond")) return 1;
+    if (value.includes("star")) return 2;
+    if (value.includes("shiny")) return 3;
+    if (value.includes("crown")) return 4;
+    return 5;
+  };
+  return [...rarities].sort((a, b) => {
+    const pa = priority(a);
+    const pb = priority(b);
+    if (pa !== pb) return pa - pb;
+    const ca = parseRarity(a)?.count ?? 0;
+    const cb = parseRarity(b)?.count ?? 0;
+    if (ca !== cb) return ca - cb;
+    return a.localeCompare(b);
+  });
 }

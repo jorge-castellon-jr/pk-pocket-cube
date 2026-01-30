@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchTCGPocketCardById,
   getCardImageUrl,
-  type TCGdexCardDetail,
   fetchAllTCGPocketCardsIncludingNoImage,
   fetchEvolutionData,
 } from "../api/tcgdex";
@@ -71,27 +70,27 @@ function CardDetailPage() {
   }
 
   const card = cardQuery.data;
-  const imgUrl = getCardImageUrl(card, "large");
+  const imgUrl = getCardImageUrl(card, "large", "webp");
   const evolutionData = evolutionsQuery.data;
   const allCards = allCardsQuery.data ?? [];
   const sameNameMatches = allCards.filter(
     (c) =>
       normalizePokemonName(c.name) === normalizePokemonName(card.name) &&
       c.id !== card.id &&
-      Boolean(c.image)
+      Boolean(c.image),
   );
   const evolvesToMatches = evolutionData?.evolvesToNames?.length
     ? allCards.filter(
         (c) =>
           evolutionData.evolvesToNames.includes(normalizePokemonName(c.name)) &&
-          Boolean(c.image)
+          Boolean(c.image),
       )
     : [];
   const evolvesFromMatches = evolutionData?.evolvesFromName
     ? allCards.filter(
         (c) =>
           normalizePokemonName(c.name) === evolutionData.evolvesFromName &&
-          Boolean(c.image)
+          Boolean(c.image),
       )
     : [];
 
@@ -99,11 +98,16 @@ function CardDetailPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-blue-950/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/database" className="text-white/70 hover:text-white text-sm">
+          <Link
+            to="/database"
+            className="text-white/70 hover:text-white text-sm"
+          >
             ← Back to database
           </Link>
           <h1 className="text-lg font-semibold">{card.name}</h1>
-          <span className="text-sm text-white/70">{card.set?.name ?? "TCG Pocket"}</span>
+          <span className="text-sm text-white/70">
+            {card.set?.name ?? "TCG Pocket"}
+          </span>
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-10">
@@ -113,7 +117,8 @@ function CardDetailPage() {
             alt={card.name}
             className="w-full object-contain drop-shadow-2xl"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://placehold.co/600x825/1e1b4b/fff?text=No+Image`;
+              (e.target as HTMLImageElement).src =
+                `https://placehold.co/600x825/1e1b4b/fff?text=No+Image`;
             }}
           />
         </div>
@@ -137,13 +142,15 @@ function CardDetailPage() {
             <Detail label="Illustrator" value={card.illustrator} />
           </div>
 
-
           {card.attacks && card.attacks.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <h3 className="font-semibold mb-3">Attacks</h3>
               <div className="space-y-3">
                 {card.attacks.map((attack, idx) => (
-                  <div key={`${attack.name ?? "attack"}-${idx}`} className="text-sm">
+                  <div
+                    key={`${attack.name ?? "attack"}-${idx}`}
+                    className="text-sm"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{attack.name}</span>
                       <div className="flex items-center gap-2">
@@ -185,13 +192,32 @@ function CardDetailPage() {
         sameNameMatches.length > 0) && (
         <section className="max-w-6xl mx-auto px-6 pb-12">
           <h3 className="font-semibold mb-4">Evolutions</h3>
-              {sameNameMatches.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
-                    Other {card.name} Cards
-                  </p>
+          {sameNameMatches.length > 0 && (
+            <div className="mb-6">
+              <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                Other {card.name} Cards
+              </p>
+              <div className="flex flex-wrap gap-6">
+                {sameNameMatches.map((evo) => (
+                  <EvolutionCardLink
+                    key={evo.id}
+                    id={evo.id}
+                    name={evo.name}
+                    image={evo.image}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid gap-6">
+            {(card.evolvesFrom || evolvesFromMatches.length > 0) && (
+              <div>
+                <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                  Evolves From
+                </p>
+                {evolvesFromMatches.length > 0 ? (
                   <div className="flex flex-wrap gap-6">
-                    {sameNameMatches.map((evo) => (
+                    {evolvesFromMatches.map((evo) => (
                       <EvolutionCardLink
                         key={evo.id}
                         id={evo.id}
@@ -200,50 +226,31 @@ function CardDetailPage() {
                       />
                     ))}
                   </div>
-                </div>
-              )}
-              <div className="grid gap-6">
-                {(card.evolvesFrom || evolvesFromMatches.length > 0) && (
-                  <div>
-                    <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
-                      Evolves From
-                    </p>
-                    {evolvesFromMatches.length > 0 ? (
-                      <div className="flex flex-wrap gap-6">
-                        {evolvesFromMatches.map((evo) => (
-                          <EvolutionCardLink
-                            key={evo.id}
-                            id={evo.id}
-                            name={evo.name}
-                            image={evo.image}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-white/70 text-sm">
-                        {card.evolvesFrom ?? "—"}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {evolvesToMatches.length > 0 && (
-                  <div>
-                    <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
-                      Evolves To
-                    </p>
-                    <div className="flex flex-wrap gap-6">
-                      {evolvesToMatches.map((evo) => (
-                        <EvolutionCardLink
-                          key={evo.id}
-                          id={evo.id}
-                          name={evo.name}
-                          image={evo.image}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                ) : (
+                  <span className="text-white/70 text-sm">
+                    {card.evolvesFrom ?? "—"}
+                  </span>
                 )}
               </div>
+            )}
+            {evolvesToMatches.length > 0 && (
+              <div>
+                <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                  Evolves To
+                </p>
+                <div className="flex flex-wrap gap-6">
+                  {evolvesToMatches.map((evo) => (
+                    <EvolutionCardLink
+                      key={evo.id}
+                      id={evo.id}
+                      name={evo.name}
+                      image={evo.image}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </section>
       )}
     </div>
@@ -289,12 +296,17 @@ function RarityDetail({ rarity }: { rarity?: string }) {
 function parseRarity(rarity?: string) {
   if (!rarity) return null;
   const value = rarity.toLowerCase();
-  const count =
-    value.includes("one") ? 1 :
-    value.includes("two") ? 2 :
-    value.includes("three") ? 3 :
-    value.includes("four") ? 4 :
-    value.includes("five") ? 5 : 1;
+  const count = value.includes("one")
+    ? 1
+    : value.includes("two")
+      ? 2
+      : value.includes("three")
+        ? 3
+        : value.includes("four")
+          ? 4
+          : value.includes("five")
+            ? 5
+            : 1;
 
   if (value.includes("diamond")) {
     return {
@@ -393,20 +405,13 @@ function EnergyIcon({ type }: { type: string }) {
 
 function SolidIcon({ Icon }: { Icon: typeof Leaf }) {
   return (
-    <Icon
-      className="h-4 w-4 text-white/90"
-      stroke="none"
-      fill="currentColor"
-    />
+    <Icon className="h-4 w-4 text-white/90" stroke="none" fill="currentColor" />
   );
 }
 
 function OutlineIcon({ Icon }: { Icon: typeof Leaf }) {
-  return (
-    <Icon className="h-4 w-4 text-white/90" strokeWidth={2} fill="none" />
-  );
+  return <Icon className="h-4 w-4 text-white/90" strokeWidth={2} fill="none" />;
 }
-
 
 function EvolutionCardLink({
   id,
@@ -419,7 +424,11 @@ function EvolutionCardLink({
 }) {
   const imgUrl = getCardImageUrl({ id, name, localId: "", image }, "small");
   return (
-    <Link to="/card/$cardId" params={{ cardId: id }} className="group relative block">
+    <Link
+      to="/card/$cardId"
+      params={{ cardId: id }}
+      className="group relative block"
+    >
       <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">
         <img
           src={imgUrl}
@@ -427,7 +436,8 @@ function EvolutionCardLink({
           className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
           loading="lazy"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://placehold.co/245x337/1e1b4b/fff?text=No+Image`;
+            (e.target as HTMLImageElement).src =
+              `https://placehold.co/245x337/1e1b4b/fff?text=No+Image`;
           }}
         />
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
