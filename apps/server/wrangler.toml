@@ -1,0 +1,10 @@
+name = "reno-stack-server"
+main = "src/worker.ts"
+compatibility_date = "2024-09-26"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "reno-stack-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "src/drizzle"

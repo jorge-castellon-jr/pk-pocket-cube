@@ -1,0 +1,40 @@
+{
+  "name": "@repo/server",
+  "types": "./src/worker.ts",
+  "exports": {
+    "./hc": {
+      "import": {
+        "types": "./dist/src/hc.d.ts",
+        "default": "./dist/src/hc.js"
+      }
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "tsc -p tsconfig.build.json",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:list": "wrangler d1 migrations list DB --local",
+    "db:list:prod": "wrangler d1 migrations list DB --remote",
+    "db:apply": "wrangler d1 migrations apply DB --local",
+    "db:apply:prod": "wrangler d1 migrations apply DB --remote",
+    "create:route": "node ./new-route.js"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.5.0",
+    "@repo/validators": "workspace:*",
+    "better-auth": "^1.2.7",
+    "drizzle-orm": "^0.43.1",
+    "hono": "^4.7.8",
+    "zod": "^4.0.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^3.91.0"
+  }
+}

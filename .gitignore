@@ -1,0 +1,17 @@
+.DS_Store
+node_modules
+.turbo
+*.log
+dist
+dist-ssr
+*.local
+.env
+.dev.vars
+.cache
+server/dist
+public/dist
+.pnpm-store
+
+# Cloudflare Workers / Wrangler
+.wrangler
+worker-configuration.d.ts
