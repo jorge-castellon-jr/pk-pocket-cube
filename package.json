@@ -1,8 +1,9 @@
 {
+  "name": "pk-pocket-cube",
   "private": true,
   "scripts": {
     "clean": "rm -rf node_modules .turbo dist apps/server/node_modules apps/web/node_modules packages/*/node_modules apps/server/dist apps/web/dist packages/*/dist apps/server/.wrangler node_modules/.vite apps/web/node_modules/.vite",
-    "build": "turbo run build",
+    "build": "pnpm --filter=@repo/web run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
@@ -10,10 +11,11 @@
     "db:migrate:local": "pnpm --filter=@repo/server db:migrate:local",
     "db:migrate:remote": "pnpm --filter=@repo/server db:migrate:remote",
     "db:list": "pnpm --filter=@repo/server db:list",
-    "db:list:local": "pnpm --filter=@repo/server db:list:local",
+    "db:list:prod": "pnpm --filter=@repo/server db:list:prod",
     "db:apply": "pnpm --filter=@repo/server db:apply",
-    "db:apply:local": "pnpm --filter=@repo/server db:apply:local",
+    "db:apply:prod": "pnpm --filter=@repo/server db:apply:prod",
     "ui-add": "turbo run ui-add --ui=tui",
+    "api:deploy": "pnpm --filter=@repo/server run deploy",
     "create:route": "pnpm --filter=@repo/server create:route"
   },
   "devDependencies": {
@@ -23,7 +25,6 @@
     "typescript": "^5.8.3"
   },
   "packageManager": "pnpm@8.15.6",
-  "name": "pk-pocket-cube",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -34,4 +35,3 @@
     }
   }
 }
-
