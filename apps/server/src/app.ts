@@ -4,7 +4,6 @@ import { cors } from "hono/cors";
 import type { Env } from "./env-types";
 import { getAuth, type HonoAppContext } from "./auth";
 import { getDb } from "./db/index";
-import { notes } from "./routes/notes";
 import { tcgPocket } from "./routes/tcg-pocket";
 
 const app = new Hono<HonoAppContext & { Bindings: Env }>()
@@ -61,7 +60,6 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
     return c.var.auth.handler(c.req.raw);
   })
   .get("/", (c) => c.json({ message: "Hello World" }))
-  .route("/notes", notes)
   .route("/tcg-pocket", tcgPocket);
 
 export default app;
