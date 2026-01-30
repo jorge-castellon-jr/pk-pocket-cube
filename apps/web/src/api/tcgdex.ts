@@ -26,6 +26,7 @@ export interface TCGdexCardDetail extends TCGdexCardBrief {
   types?: string[];
   description?: string;
   stage?: string;
+  evolvesFrom?: string;
   attacks?: Array<{
     cost?: string[];
     name?: string;
@@ -42,6 +43,12 @@ export interface TCGdexCardDetail extends TCGdexCardBrief {
   boosters?: Array<{ id: string; name: string }>;
 }
 
+export interface EvolutionData {
+  evolvesFromName?: string | null;
+  evolvesToNames?: string[];
+  chainNames?: string[];
+}
+
 export interface TCGdexSetListItem {
   id: string;
   name: string;
@@ -53,6 +60,16 @@ export interface TCGdexSetListItem {
 export async function fetchAllTCGPocketCards(): Promise<TCGdexCardWithSet[]> {
   const res = await client["tcg-pocket"].cards.$get({
     query: { detail: "1" },
+  });
+  if (!res.ok) {
+    throw new Error(`TCG Pocket API failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchAllTCGPocketCardsIncludingNoImage(): Promise<TCGdexCardWithSet[]> {
+  const res = await client["tcg-pocket"].cards.$get({
+    query: { detail: "1", includeNoImage: "1" },
   });
   if (!res.ok) {
     throw new Error(`TCG Pocket API failed: ${res.status}`);
@@ -80,12 +97,27 @@ export async function fetchTCGPocketCardById(
   return res.json();
 }
 
+export async function fetchEvolutionData(
+  name: string
+): Promise<EvolutionData> {
+  const res = await client["tcg-pocket"].evolution[":name"].$get({
+    param: { name },
+  });
+  if (!res.ok) {
+    throw new Error(`Evolution lookup failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 /** Card image URL; TCGdex uses base path + /{quality}.{extension}. */
 export function getCardImageUrl(
   card: TCGdexCardBrief,
   size: "small" | "large" = "small",
   format: "webp" | "png" = "webp"
 ): string {
+  if (!card.image) {
+    return "https://placehold.co/245x337/1e1b4b/fff?text=No+Image";
+  }
   const quality = size === "small" ? "low" : "high";
   const base = card.image.endsWith(".webp")
     ? card.image

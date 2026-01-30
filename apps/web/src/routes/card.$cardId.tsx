@@ -4,8 +4,24 @@ import {
   fetchTCGPocketCardById,
   getCardImageUrl,
   type TCGdexCardDetail,
+  fetchAllTCGPocketCardsIncludingNoImage,
+  fetchEvolutionData,
 } from "../api/tcgdex";
 import { Button } from "@repo/ui/button";
+import {
+  Leaf,
+  Flame,
+  Droplet,
+  Zap,
+  Sparkles,
+  HandFist,
+  Moon,
+  Shield,
+  Hexagon,
+  Circle,
+  Eye,
+} from "lucide-react";
+import { normalizePokemonName } from "../api/pokeapi";
 
 export const Route = createFileRoute("/card/$cardId")({
   component: CardDetailPage,
@@ -16,6 +32,17 @@ function CardDetailPage() {
   const cardQuery = useQuery({
     queryKey: ["tcgpocket", "card", cardId],
     queryFn: () => fetchTCGPocketCardById(cardId),
+  });
+  const evolutionsQuery = useQuery({
+    queryKey: ["pokeapi", "evolution", cardQuery.data?.name],
+    queryFn: () => fetchEvolutionData(cardQuery.data?.name ?? ""),
+    enabled: Boolean(cardQuery.data?.name),
+  });
+  const allCardsQuery = useQuery({
+    queryKey: ["tcgpocket", "cards", "includeNoImage"],
+    queryFn: fetchAllTCGPocketCardsIncludingNoImage,
+    staleTime: 1000 * 60 * 10,
+    enabled: Boolean(evolutionsQuery.data),
   });
 
   if (cardQuery.isPending) {
@@ -42,6 +69,28 @@ function CardDetailPage() {
 
   const card = cardQuery.data;
   const imgUrl = getCardImageUrl(card, "large");
+  const evolutionData = evolutionsQuery.data;
+  const allCards = allCardsQuery.data ?? [];
+  const sameNameMatches = allCards.filter(
+    (c) =>
+      normalizePokemonName(c.name) === normalizePokemonName(card.name) &&
+      c.id !== card.id &&
+      Boolean(c.image)
+  );
+  const evolvesToMatches = evolutionData?.evolvesToNames?.length
+    ? allCards.filter(
+        (c) =>
+          evolutionData.evolvesToNames.includes(normalizePokemonName(c.name)) &&
+          Boolean(c.image)
+      )
+    : [];
+  const evolvesFromMatches = evolutionData?.evolvesFromName
+    ? allCards.filter(
+        (c) =>
+          normalizePokemonName(c.name) === evolutionData.evolvesFromName &&
+          Boolean(c.image)
+      )
+    : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
@@ -85,6 +134,7 @@ function CardDetailPage() {
             <Detail label="Illustrator" value={card.illustrator} />
           </div>
 
+
           {card.attacks && card.attacks.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <h3 className="font-semibold mb-3">Attacks</h3>
@@ -106,9 +156,7 @@ function CardDetailPage() {
                             aria-label={cost}
                             className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${getCostIconClass(cost)}`}
                           >
-                            <span className="text-[11px] leading-none">
-                              {getCostIcon(cost)}
-                            </span>
+                            <EnergyIcon type={cost} />
                             <span className="sr-only">{cost}</span>
                           </span>
                         ))}
@@ -124,6 +172,73 @@ function CardDetailPage() {
           )}
         </div>
       </main>
+      {(card.evolvesFrom ||
+        evolvesFromMatches.length > 0 ||
+        (evolvesToMatches && evolvesToMatches.length > 0) ||
+        sameNameMatches.length > 0) && (
+        <section className="max-w-6xl mx-auto px-6 pb-12">
+          <h3 className="font-semibold mb-4">Evolutions</h3>
+              {sameNameMatches.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                    Other {card.name} Cards
+                  </p>
+                  <div className="flex flex-wrap gap-6">
+                    {sameNameMatches.map((evo) => (
+                      <EvolutionCardLink
+                        key={evo.id}
+                        id={evo.id}
+                        name={evo.name}
+                        image={evo.image}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-6">
+                {(card.evolvesFrom || evolvesFromMatches.length > 0) && (
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                      Evolves From
+                    </p>
+                    {evolvesFromMatches.length > 0 ? (
+                      <div className="flex flex-wrap gap-6">
+                        {evolvesFromMatches.map((evo) => (
+                          <EvolutionCardLink
+                            key={evo.id}
+                            id={evo.id}
+                            name={evo.name}
+                            image={evo.image}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-white/70 text-sm">
+                        {card.evolvesFrom ?? "—"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {evolvesToMatches.length > 0 && (
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-[0.2em] mb-2">
+                      Evolves To
+                    </p>
+                    <div className="flex flex-wrap gap-6">
+                      {evolvesToMatches.map((evo) => (
+                        <EvolutionCardLink
+                          key={evo.id}
+                          id={evo.id}
+                          name={evo.name}
+                          image={evo.image}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -167,30 +282,76 @@ function getCostIconClass(cost: string) {
   }
 }
 
-function getCostIcon(cost: string) {
-  const normalized = cost.toLowerCase();
+function EnergyIcon({ type }: { type: string }) {
+  const normalized = type.toLowerCase();
   switch (normalized) {
     case "grass":
-      return "🌿";
+      return <SolidIcon Icon={Leaf} />;
     case "fire":
-      return "🔥";
+      return <SolidIcon Icon={Flame} />;
     case "water":
-      return "💧";
+      return <SolidIcon Icon={Droplet} />;
     case "lightning":
-      return "⚡";
+      return <SolidIcon Icon={Zap} />;
     case "psychic":
-      return "🔮";
+      return <OutlineIcon Icon={Eye} />;
     case "fighting":
-      return "🥊";
+      return <SolidIcon Icon={HandFist} />;
     case "darkness":
-      return "🌑";
+      return <SolidIcon Icon={Moon} />;
     case "metal":
-      return "⚙";
+      return <SolidIcon Icon={Shield} />;
     case "dragon":
-      return "🐉";
+      return <SolidIcon Icon={Hexagon} />;
     case "colorless":
-      return "◇";
+      return <SolidIcon Icon={Sparkles} />;
     default:
-      return "•";
+      return <SolidIcon Icon={Circle} />;
   }
+}
+
+function SolidIcon({ Icon }: { Icon: typeof Leaf }) {
+  return (
+    <Icon
+      className="h-4 w-4 text-white/90"
+      stroke="none"
+      fill="currentColor"
+    />
+  );
+}
+
+function OutlineIcon({ Icon }: { Icon: typeof Leaf }) {
+  return (
+    <Icon className="h-4 w-4 text-white/90" strokeWidth={2} fill="none" />
+  );
+}
+
+function EvolutionCardLink({
+  id,
+  name,
+  image,
+}: {
+  id: string;
+  name: string;
+  image: string;
+}) {
+  const imgUrl = getCardImageUrl({ id, name, localId: "", image }, "small");
+  return (
+    <Link to="/card/$cardId" params={{ cardId: id }} className="group relative block">
+      <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">
+        <img
+          src={imgUrl}
+          alt={name}
+          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = `https://placehold.co/245x337/1e1b4b/fff?text=No+Image`;
+          }}
+        />
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+          <div className="absolute inset-0 ring-2 ring-yellow-200/40" />
+        </div>
+      </div>
+    </Link>
+  );
 }
