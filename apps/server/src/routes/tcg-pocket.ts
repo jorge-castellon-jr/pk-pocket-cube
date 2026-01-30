@@ -134,7 +134,7 @@ export const tcgPocket = new Hono<HonoAppContext>().get("/cards", async (c) => {
       cards = await mapWithConcurrency(baseCards, 6, async (card) => {
         const cardRes = await fetch(`${API_BASE}/cards/${card.id}`);
         if (!cardRes.ok) return card;
-        const detail = await cardRes.json();
+        const detail = (await cardRes.json()) as { rarity?: string };
         return {
           ...card,
           rarity: detail?.rarity,
@@ -167,7 +167,7 @@ export const tcgPocket = new Hono<HonoAppContext>().get("/cards", async (c) => {
         404,
       );
     }
-    const card = await cardRes.json();
+    const card = (await cardRes.json()) as Record<string, unknown>;
     return c.json(card, 200);
   } catch (error) {
     const message =

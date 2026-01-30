@@ -106,7 +106,11 @@ function DatabasePage() {
     return sortOrder === "desc" ? compareValue * -1 : compareValue;
   });
   const rarityOptions = Array.from(
-    new Set(cards.map((card) => card.rarity).filter(Boolean))
+    new Set(
+      cards
+        .map((card) => card.rarity)
+        .filter((rarity): rarity is string => Boolean(rarity))
+    )
   ).sort((a, b) => a.localeCompare(b));
   const sortedRarities = sortRarities(rarityOptions);
 

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "clean": "rm -rf node_modules .turbo dist apps/server/node_modules apps/web/node_modules packages/*/node_modules apps/server/dist apps/web/dist packages/*/dist apps/server/.wrangler node_modules/.vite apps/web/node_modules/.vite",
-    "build": "pnpm --filter=@repo/web run build",
+    "build": "pnpm --filter=@repo/server run build && pnpm --filter=@repo/web run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

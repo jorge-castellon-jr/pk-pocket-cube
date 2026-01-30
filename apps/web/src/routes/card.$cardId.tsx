@@ -73,16 +73,17 @@ function CardDetailPage() {
   const imgUrl = getCardImageUrl(card, "large", "webp");
   const evolutionData = evolutionsQuery.data;
   const allCards = allCardsQuery.data ?? [];
+  const evolvesToNames = evolutionData?.evolvesToNames ?? [];
   const sameNameMatches = allCards.filter(
     (c) =>
       normalizePokemonName(c.name) === normalizePokemonName(card.name) &&
       c.id !== card.id &&
       Boolean(c.image),
   );
-  const evolvesToMatches = evolutionData?.evolvesToNames?.length
+  const evolvesToMatches = evolvesToNames.length
     ? allCards.filter(
         (c) =>
-          evolutionData.evolvesToNames.includes(normalizePokemonName(c.name)) &&
+          evolvesToNames.includes(normalizePokemonName(c.name)) &&
           Boolean(c.image),
       )
     : [];

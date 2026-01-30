@@ -64,7 +64,7 @@ export async function fetchAllTCGPocketCards(): Promise<TCGdexCardWithSet[]> {
   if (!res.ok) {
     throw new Error(`TCG Pocket API failed: ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as TCGdexCardWithSet[];
 }
 
 export async function fetchAllTCGPocketCardsIncludingNoImage(): Promise<TCGdexCardWithSet[]> {
@@ -74,7 +74,7 @@ export async function fetchAllTCGPocketCardsIncludingNoImage(): Promise<TCGdexCa
   if (!res.ok) {
     throw new Error(`TCG Pocket API failed: ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as TCGdexCardWithSet[];
 }
 
 export async function fetchTCGPocketSets(): Promise<TCGdexSetListItem[]> {

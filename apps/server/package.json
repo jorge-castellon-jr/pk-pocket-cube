@@ -4,8 +4,8 @@
   "exports": {
     "./hc": {
       "import": {
-        "types": "./dist/src/hc.d.ts",
-        "default": "./dist/src/hc.js"
+        "types": "./dist/hc.d.ts",
+        "default": "./dist/hc.js"
       }
     }
   },
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/node": "^22.16.5",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.8.3",
     "wrangler": "^3.91.0"
