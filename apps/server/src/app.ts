@@ -5,6 +5,7 @@ import type { Env } from "./env-types";
 import { getAuth, type HonoAppContext } from "./auth";
 import { getDb } from "./db/index";
 import { notes } from "./routes/notes";
+import { tcgPocket } from "./routes/tcg-pocket";
 
 const app = new Hono<HonoAppContext & { Bindings: Env }>()
   // ------------------------------------------------------------
@@ -21,7 +22,16 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
   .use(
     "*",
     cors({
-      origin: (_, c) => c.env.WEB_URL,
+      origin: (origin, c) => {
+        const allowed = new Set(
+          [
+            c.env.WEB_URL,
+            "http://localhost:5173",
+            "http://localhost:5174",
+          ].filter(Boolean)
+        );
+        return origin && allowed.has(origin) ? origin : allowed.values().next().value;
+      },
       allowHeaders: ["Content-Type", "Authorization"],
       allowMethods: ["POST", "GET", "OPTIONS"],
       exposeHeaders: ["Content-Length"],
@@ -51,7 +61,8 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
     return c.var.auth.handler(c.req.raw);
   })
   .get("/", (c) => c.json({ message: "Hello World" }))
-  .route("/notes", notes);
+  .route("/notes", notes)
+  .route("/tcg-pocket", tcgPocket);
 
 export default app;
 

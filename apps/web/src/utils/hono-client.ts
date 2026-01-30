@@ -5,6 +5,8 @@ import { hc } from "hono/client";
 const hcWithType = (...args: Parameters<typeof hc>): Client =>
   hc<AppType>(...args);
 
-export const client = hcWithType(import.meta.env.VITE_SERVER_URL, {
+const baseUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:8787";
+
+export const client = hcWithType(baseUrl, {
   init: { credentials: "include" },
 });
