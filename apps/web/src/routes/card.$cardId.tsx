@@ -544,7 +544,7 @@ function EvolutionCardLink({
 }: {
   id: string;
   name: string;
-  image: string;
+  image?: string;
   draftMode?: boolean;
   draftTab?: "draft" | "shop";
 }) {

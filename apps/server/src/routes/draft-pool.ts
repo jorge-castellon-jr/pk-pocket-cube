@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, eq } from "drizzle-orm";
 import type { HonoAppContext } from "../auth";
@@ -55,6 +55,7 @@ type PokemonSpeciesResponse = {
 };
 
 const exclusionScopes = new Set(["evolution", "shop", "both"]);
+type DraftContext = Context<any, string>;
 
 export const draftPool = new Hono<HonoAppContext>()
   .get("/", async (c) => {
@@ -94,7 +95,9 @@ export const draftPool = new Hono<HonoAppContext>()
     await assertEditor(c);
     const body = await readJsonBody(c);
     const cardIds = Array.isArray(body?.cardIds)
-      ? body.cardIds.filter((value): value is string => typeof value === "string")
+      ? body.cardIds.filter(
+          (value: unknown): value is string => typeof value === "string",
+        )
       : null;
     if (!cardIds) {
       throw new HTTPException(400, { message: "Invalid picks payload." });
@@ -104,7 +107,7 @@ export const draftPool = new Hono<HonoAppContext>()
     await db.delete(draftPoolPick);
     if (cardIds.length > 0) {
       await db.insert(draftPoolPick).values(
-        cardIds.map((cardId) => ({
+        cardIds.map((cardId: string) => ({
           id: crypto.randomUUID(),
           cardId,
           createdAt: new Date(),
@@ -118,11 +121,13 @@ export const draftPool = new Hono<HonoAppContext>()
     const body = await readJsonBody(c);
     const exclusions = Array.isArray(body?.exclusions)
       ? body.exclusions.filter(
-          (item): item is { cardId: string; scope: string } =>
-            item &&
-            typeof item.cardId === "string" &&
-            typeof item.scope === "string" &&
-            exclusionScopes.has(item.scope),
+          (
+            item: unknown,
+          ): item is { cardId: string; scope: "evolution" | "shop" | "both" } =>
+            Boolean(item) &&
+            typeof (item as { cardId?: unknown }).cardId === "string" &&
+            typeof (item as { scope?: unknown }).scope === "string" &&
+            exclusionScopes.has((item as { scope: string }).scope),
         )
       : null;
     if (!exclusions) {
@@ -133,7 +138,7 @@ export const draftPool = new Hono<HonoAppContext>()
     await db.delete(draftPoolExclusion);
     if (exclusions.length > 0) {
       await db.insert(draftPoolExclusion).values(
-        exclusions.map((item) => ({
+        exclusions.map((item: { cardId: string; scope: "evolution" | "shop" | "both" }) => ({
           id: crypto.randomUUID(),
           cardId: item.cardId,
           scope: item.scope as "evolution" | "shop" | "both",
@@ -144,7 +149,7 @@ export const draftPool = new Hono<HonoAppContext>()
     return c.json({ ok: true }, 200);
   });
 
-async function assertEditor(c: HonoAppContext) {
+async function assertEditor(c: DraftContext) {
   const user = c.get("user");
   if (!user) {
     throw new HTTPException(401, { message: "Please login" });
@@ -171,7 +176,7 @@ async function assertEditor(c: HonoAppContext) {
   }
 }
 
-async function getEditorStatus(c: HonoAppContext) {
+async function getEditorStatus(c: DraftContext) {
   const user = c.get("user");
   if (!user) return false;
   const db = c.var.db;
@@ -192,7 +197,7 @@ async function getEditorStatus(c: HonoAppContext) {
   return Boolean(editor);
 }
 
-async function readJsonBody(c: HonoAppContext) {
+async function readJsonBody(c: DraftContext) {
   try {
     return await c.req.json();
   } catch {

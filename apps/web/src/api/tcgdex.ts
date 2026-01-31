@@ -9,7 +9,7 @@ export interface TCGdexCardBrief {
   id: string;
   name: string;
   localId: string;
-  image: string;
+  image?: string;
 }
 
 export interface TCGdexCardWithSet extends TCGdexCardBrief {
