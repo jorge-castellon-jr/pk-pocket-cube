@@ -9,6 +9,7 @@ import {
   draftPoolEditor,
   draftPoolExclusion,
   draftPoolPick,
+  user as userTable,
 } from "../db/schema";
 import { isCacheReady, getCachedCards } from "../lib/tcgp-cache";
 
@@ -58,6 +59,17 @@ type PokemonSpeciesResponse = {
 
 const exclusionScopes = new Set(["evolution", "shop", "both"]);
 type DraftContext = Context<any, string>;
+
+async function isOwner(c: DraftContext): Promise<boolean> {
+  const currentUser = c.get("user");
+  if (!currentUser) return false;
+  const [first] = await c.var.db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .orderBy(userTable.createdAt)
+    .limit(1);
+  return first?.id === currentUser.id;
+}
 
 export const draftPool = new Hono<HonoAppContext & { Bindings: Env }>()
   .get("/", async (c) => {
@@ -150,6 +162,118 @@ export const draftPool = new Hono<HonoAppContext & { Bindings: Env }>()
         })),
       );
     }
+    return c.json({ ok: true }, 200);
+  })
+  .get("/editors", withAuth, async (c) => {
+    const currentUser = c.get("user");
+    if (!currentUser) {
+      throw new HTTPException(401, { message: "Please login" });
+    }
+
+    const db = c.var.db;
+    const [discordAccount] = await db
+      .select({ accountId: account.accountId })
+      .from(account)
+      .where(
+        and(
+          eq(account.userId, currentUser.id),
+          eq(account.providerId, "discord"),
+        ),
+      )
+      .limit(1);
+    if (!discordAccount) {
+      throw new HTTPException(403, {
+        message: "Discord account required.",
+      });
+    }
+
+    const [currentUserEditor] = await db
+      .select({ id: draftPoolEditor.id })
+      .from(draftPoolEditor)
+      .where(eq(draftPoolEditor.discordAccountId, discordAccount.accountId))
+      .limit(1);
+    const isDraftPoolEditor = Boolean(currentUserEditor);
+    const canManageEditors = isDraftPoolEditor || (await isOwner(c));
+
+    const discordUsers = await db
+      .select({
+        userId: userTable.id,
+        name: userTable.name,
+        email: userTable.email,
+        image: userTable.image,
+        accountId: account.accountId,
+      })
+      .from(account)
+      .innerJoin(userTable, eq(account.userId, userTable.id))
+      .where(eq(account.providerId, "discord"));
+
+    const editorAccountIds = new Set(
+      (await db.select({ discordAccountId: draftPoolEditor.discordAccountId }).from(draftPoolEditor)).map(
+        (r) => r.discordAccountId,
+      ),
+    );
+
+    const list = discordUsers.map((row) => ({
+      id: row.userId,
+      name: row.name,
+      email: row.email,
+      image: row.image,
+      canEdit: editorAccountIds.has(row.accountId),
+    }));
+
+    return c.json({ users: list, isEditor: canManageEditors }, 200);
+  })
+  .put("/editors", withAuth, async (c) => {
+    const owner = await isOwner(c);
+    if (!owner) await assertEditor(c);
+    const body = await readJsonBody(c);
+    const userId =
+      typeof body?.userId === "string" ? body.userId : null;
+    const canEdit = typeof body?.canEdit === "boolean" ? body.canEdit : null;
+    if (userId === null || canEdit === null) {
+      throw new HTTPException(400, {
+        message: "Body must include userId (string) and canEdit (boolean).",
+      });
+    }
+
+    const db = c.var.db;
+    const [target] = await db
+      .select({
+        accountId: account.accountId,
+        userName: userTable.name,
+      })
+      .from(account)
+      .innerJoin(userTable, eq(account.userId, userTable.id))
+      .where(
+        and(eq(account.userId, userId), eq(account.providerId, "discord")),
+      )
+      .limit(1);
+    if (!target) {
+      throw new HTTPException(404, {
+        message: "User not found or has no Discord account.",
+      });
+    }
+
+    if (canEdit) {
+      const [existing] = await db
+        .select({ id: draftPoolEditor.id })
+        .from(draftPoolEditor)
+        .where(eq(draftPoolEditor.discordAccountId, target.accountId))
+        .limit(1);
+      if (!existing) {
+        await db.insert(draftPoolEditor).values({
+          id: crypto.randomUUID(),
+          discordAccountId: target.accountId,
+          displayName: target.userName ?? null,
+          createdAt: new Date(),
+        });
+      }
+    } else {
+      await db
+        .delete(draftPoolEditor)
+        .where(eq(draftPoolEditor.discordAccountId, target.accountId));
+    }
+
     return c.json({ ok: true }, 200);
   });
 

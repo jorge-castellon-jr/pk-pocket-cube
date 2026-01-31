@@ -41,3 +41,33 @@ export async function updateDraftPoolExclusions(exclusions: DraftPoolExclusion[]
   }
   return res.json();
 }
+
+export type EditorUser = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  canEdit: boolean;
+};
+
+export type EditorsResponse = {
+  users: EditorUser[];
+  isEditor: boolean;
+};
+
+export async function fetchEditors(): Promise<EditorsResponse> {
+  const res = await client["draft-pool"].editors.$get();
+  if (!res.ok) {
+    throw new Error(`Editors fetch failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function setEditor(userId: string, canEdit: boolean): Promise<void> {
+  const res = await client["draft-pool"].editors.$put({
+    json: { userId, canEdit },
+  });
+  if (!res.ok) {
+    throw new Error(`Set editor failed: ${res.status}`);
+  }
+}

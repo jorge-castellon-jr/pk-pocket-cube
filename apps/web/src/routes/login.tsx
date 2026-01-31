@@ -1,7 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "../utils/auth-client";
 import { authClient } from "../utils/auth-client";
 import { Button } from "@repo/ui/button";
+import {
+  fetchEditors,
+  setEditor as setEditorApi,
+  type EditorUser,
+} from "../api/draft-pool";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -9,7 +15,47 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isInitialPending } = useSession();
+
+  const editorsQuery = useQuery({
+    queryKey: ["editors"],
+    queryFn: fetchEditors,
+    enabled: !!session?.user,
+  });
+
+  const setEditorMutation = useMutation({
+    mutationFn: ({ userId, canEdit }: { userId: string; canEdit: boolean }) =>
+      setEditorApi(userId, canEdit),
+    onMutate: async ({ userId, canEdit }) => {
+      await queryClient.cancelQueries({ queryKey: ["editors"] });
+      const previous = queryClient.getQueryData<{
+        users: EditorUser[];
+        isEditor: boolean;
+      }>(["editors"]);
+      queryClient.setQueryData<
+        { users: EditorUser[]; isEditor: boolean }
+      >(["editors"], (old) =>
+        old
+          ? {
+              ...old,
+              users: old.users.map((u) =>
+                u.id === userId ? { ...u, canEdit } : u,
+              ),
+            }
+          : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["editors"], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["editors"] });
+    },
+  });
 
   const signIn = async () => {
     await authClient.signIn.social({
@@ -21,6 +67,10 @@ function LoginPage() {
   const signOut = async () => {
     await authClient.signOut();
     navigate({ to: "/" });
+  };
+
+  const handleCanEditChange = (user: EditorUser) => {
+    setEditorMutation.mutate({ userId: user.id, canEdit: !user.canEdit });
   };
 
   if (isInitialPending) {
@@ -37,6 +87,9 @@ function LoginPage() {
   }
 
   if (session?.user) {
+    const users = editorsQuery.data?.users ?? [];
+    const isEditor = editorsQuery.data?.isEditor ?? false;
+
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
         <header className="border-b border-white/10 bg-blue-950/90 backdrop-blur">
@@ -46,7 +99,7 @@ function LoginPage() {
             </Link>
           </div>
         </header>
-        <main className="max-w-md mx-auto px-4 py-16 flex flex-col items-center gap-8">
+        <main className="max-w-2xl mx-auto px-4 py-16 flex flex-col items-center gap-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-8 w-full text-center space-y-6">
             <h1 className="text-lg font-semibold text-yellow-200 uppercase tracking-wider">
               Signed in
@@ -76,6 +129,81 @@ function LoginPage() {
               </Button>
             </div>
           </div>
+
+          {editorsQuery.isSuccess && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-8 w-full space-y-4">
+              <h2 className="text-lg font-semibold text-yellow-200 uppercase tracking-wider">
+                Users
+              </h2>
+              <p className="text-sm text-white/60">
+                {isEditor
+                  ? "Toggle who can edit the draft pool."
+                  : "Only editors can change who can edit."}
+              </p>
+              {editorsQuery.isPending ? (
+                <p className="text-white/60 text-sm">Loading users…</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-white/10">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5">
+                        <th className="px-4 py-3 font-medium text-white/90">
+                          User
+                        </th>
+                        <th className="px-4 py-3 font-medium text-white/90 w-24 text-center">
+                          Can edit
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr
+                          key={user.id}
+                          className="border-b border-white/5 last:border-0"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={
+                                  user.image ??
+                                  `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name ?? user.email ?? "?")}&background=5865F2&color=fff`
+                                }
+                                alt=""
+                                className="h-8 w-8 rounded-full border border-white/20"
+                              />
+                              <div>
+                                <span className="font-medium text-white">
+                                  {user.name ?? user.email ?? "—"}
+                                </span>
+                                {user.email && (
+                                  <span className="ml-2 text-white/60">
+                                    {user.email}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={user.canEdit}
+                              onChange={() => handleCanEditChange(user)}
+                              disabled={
+                                !isEditor ||
+                                (setEditorMutation.isPending &&
+                                  setEditorMutation.variables?.userId === user.id)
+                              }
+                              className="h-4 w-4 rounded border-white/30 bg-white/10 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 focus:ring-offset-transparent"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
     );

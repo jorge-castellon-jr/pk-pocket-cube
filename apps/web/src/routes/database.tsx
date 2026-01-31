@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAllTCGPocketCards,
   fetchTCGPocketSets,
@@ -7,9 +7,15 @@ import {
   type TCGdexCardWithSet,
   type TCGdexSetListItem,
 } from "../api/tcgdex";
+import {
+  fetchDraftPool,
+  updateDraftPoolPicks,
+  updateDraftPoolExclusions,
+  type DraftPoolExclusion,
+} from "../api/draft-pool";
 import { Button } from "@repo/ui/button";
 import { z } from "zod";
-import { Diamond, Star, Crown, Sparkles } from "lucide-react";
+import { Diamond, Star, Crown, Sparkles, Plus, Minus, Ban } from "lucide-react";
 
 const searchSchema = z.object({
   set: z.string().optional(),
@@ -28,12 +34,46 @@ export const Route = createFileRoute("/database")({
 function DatabasePage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const queryClient = useQueryClient();
   const selectedSet = search.set ?? "all";
   const sortBy = search.sort ?? "id";
   const sortOrder = search.order ?? "asc";
   const selectedRarity = search.rarity ?? "all";
   const searchQuery = search.q ?? "";
   const isDraftMode = search.draftMode === "1";
+
+  const draftPoolQuery = useQuery({
+    queryKey: ["draft-pool"],
+    queryFn: fetchDraftPool,
+    enabled: isDraftMode,
+  });
+  const updatePicksMutation = useMutation({
+    mutationFn: updateDraftPoolPicks,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
+  });
+  const updateExclusionsMutation = useMutation({
+    mutationFn: updateDraftPoolExclusions,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
+  });
+
+  const draftPicks = draftPoolQuery.data?.picks ?? [];
+  const draftExclusions = draftPoolQuery.data?.exclusions ?? [];
+  const isDraftEditor = draftPoolQuery.data?.isEditor ?? false;
+
+  const handleAddPick = (cardId: string) => {
+    const nextIds = [...draftPicks.map((p) => p.id), cardId];
+    updatePicksMutation.mutate(nextIds);
+  };
+  const handleRemovePick = (cardId: string) => {
+    const nextIds = draftPicks.filter((p) => p.id !== cardId).map((p) => p.id);
+    updatePicksMutation.mutate(nextIds);
+  };
+  const handleExclude = (cardId: string) => {
+    const next: DraftPoolExclusion[] = draftExclusions.filter(
+      (e) => e.cardId !== cardId
+    ).concat([{ cardId, scope: "both" }]);
+    updateExclusionsMutation.mutate(next);
+  };
 
   const setsQuery = useQuery({
     queryKey: ["tcgpocket", "sets"],
@@ -275,7 +315,18 @@ function DatabasePage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {sortedCards.map((card) => (
-            <CardItem key={card.id} card={card} draftMode={isDraftMode} />
+            <CardItem
+              key={card.id}
+              card={card}
+              draftMode={isDraftMode}
+              isEditor={isDraftEditor}
+              isPicked={draftPicks.some((p) => p.id === card.id)}
+              onAddPick={handleAddPick}
+              onRemovePick={handleRemovePick}
+              onExclude={handleExclude}
+              picksMutating={updatePicksMutation.isPending}
+              exclusionsMutating={updateExclusionsMutation.isPending}
+            />
           ))}
         </div>
       </main>
@@ -343,33 +394,96 @@ function ensureWebpExtension(url: string) {
 function CardItem({
   card,
   draftMode,
+  isEditor,
+  isPicked,
+  onAddPick,
+  onRemovePick,
+  onExclude,
+  picksMutating,
+  exclusionsMutating,
 }: {
   card: TCGdexCardWithSet;
   draftMode: boolean;
+  isEditor?: boolean;
+  isPicked?: boolean;
+  onAddPick?: (cardId: string) => void;
+  onRemovePick?: (cardId: string) => void;
+  onExclude?: (cardId: string) => void;
+  picksMutating?: boolean;
+  exclusionsMutating?: boolean;
 }) {
   const imgUrl = getCardImageUrl(card, "small");
+  const showDraftActions = draftMode && isEditor;
+
   return (
-    <Link
-      to="/card/$cardId"
-      params={{ cardId: card.id }}
-      search={draftMode ? { draftMode: "1" } : undefined}
-      className="group relative block"
-    >
-      <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">
-        <img
-          src={imgUrl}
-          alt={card.name}
-          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
-          loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://placehold.co/245x337/1e1b4b/fff?text=No+Image`;
-          }}
-        />
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
-          <div className="absolute inset-0 ring-2 ring-yellow-200/40" />
+    <div className="group relative flex flex-col gap-2">
+      <Link
+        to="/card/$cardId"
+        params={{ cardId: card.id }}
+        search={draftMode ? { draftMode: "1" } : undefined}
+        className="relative block"
+      >
+        <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">
+          <img
+            src={imgUrl}
+            alt={card.name}
+            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.05]"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://placehold.co/245x337/1e1b4b/fff?text=No+Image`;
+            }}
+          />
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+            <div className="absolute inset-0 ring-2 ring-yellow-200/40" />
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+      {showDraftActions && (
+        <div className="flex items-center justify-center gap-1.5">
+          {isPicked ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onRemovePick?.(card.id);
+              }}
+              disabled={picksMutating}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 disabled:opacity-50 transition"
+              title="Remove from draft pool"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onAddPick?.(card.id);
+                }}
+                disabled={picksMutating}
+                className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50 transition"
+                title="Add to draft pool"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onExclude?.(card.id);
+                }}
+                disabled={exclusionsMutating}
+                className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 transition"
+                title="Exclude from evolution & shop"
+              >
+                <Ban className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
