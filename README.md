@@ -53,13 +53,27 @@ Before diving in, it's recommended to read the sections below for a better under
 | Apply migrations | `cd apps/server && pnpm db:migrate:local` (local) or `pnpm db:migrate:remote` (remote) |
 | Set secrets | `cp apps/server/.dev.vars.example apps/server/.dev.vars` and fill in `BETTER_AUTH_SECRET`, Discord keys, etc. |
 
-Create a Discord application in the [Discord developer portal](https://discord.com/developers/applications). Go to your created application and add the following to `Redirects` in `OAuth2` settings:
+Create a Discord application in the [Discord developer portal](https://discord.com/developers/applications). Go to your created application and add the **exact** redirect URIs to `Redirects` in `OAuth2` settings (one per environment):
 
-```text
-http://localhost:8787/api/auth/callback/discord
-```
+- **Local:** `http://localhost:8787/api/auth/callback/discord`
+- **Production:** your API URL + `/api/auth/callback/discord` (e.g. `https://pk-pocket-cube-api-prod.castellon.workers.dev/api/auth/callback/discord`)
 
-Add `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` to `apps/server/.dev.vars`. The server runs on **Cloudflare Workers**; local dev uses `pnpm dev` in `apps/server` (Worker URL is `http://localhost:8787`). Set `VITE_SERVER_URL=http://localhost:8787` in `.dev.vars` so the web app talks to the Worker.
+Add `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` to `apps/server/.dev.vars` (and production secrets for prod). The server runs on **Cloudflare Workers**; local dev uses `pnpm dev` in `apps/server` (Worker URL is `http://localhost:8787`). Set `VITE_SERVER_URL=http://localhost:8787` in `.dev.vars` so the web app talks to the Worker.
+
+### Production login: “get-session is null” / session cookie not sent
+
+If the callback sets a cookie (`hasSetCookie: true` in logs) but later get-session requests have `hasCookieHeader: false`, the browser is **not sending** the session cookie. That happens when the API and frontend are on **different registrable domains** (e.g. API at `*.workers.dev`, frontend at `pocket.castellon.dev`): the cookie is treated as **third-party** and many browsers block or restrict it.
+
+**Fix: serve the API from the same site as the frontend** (e.g. a subdomain of your app domain):
+
+1. **Add a custom domain to the Worker** so the API is on the same domain as the frontend (e.g. `api.pocket.castellon.dev`):
+   - Cloudflare Dashboard → Workers & Pages → your worker (`pk-pocket-cube-api-prod`) → **Settings** → **Domains & Routes** → **Add** → **Custom Domain** → e.g. `api.pocket.castellon.dev` (the zone for `pocket.castellon.dev` must be on the same Cloudflare account).
+2. **Set production env** so the app and Discord use that URL:
+   - In **wrangler.toml** `[env.prod.vars]`: set `VITE_SERVER_URL = "https://api.pocket.castellon.dev"` (or your chosen hostname).
+   - In **Discord** OAuth2 Redirects: add `https://api.pocket.castellon.dev/api/auth/callback/discord` (and remove the `*.workers.dev` one if you no longer use it).
+3. **Redeploy** the worker and ensure the frontend is built with `VITE_SERVER_URL=https://api.pocket.castellon.dev` for production.
+
+Then the session cookie is **first-party** (same site as the page), and get-session should receive it.
 
 Visit `http://localhost:5173` to start building! 🚀
 
