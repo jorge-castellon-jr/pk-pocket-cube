@@ -78,7 +78,8 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
       hasSession,
     };
     if (path === "/api/auth/get-session") {
-      logData.hasCookieHeader = c.req.header("Cookie")?.length > 0 ?? false;
+      const cookie = c.req.header("Cookie");
+      logData.hasCookieHeader = (cookie?.length ?? 0) > 0;
     }
     logger.info("request", logData);
 
@@ -125,12 +126,10 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
     ].filter((v): v is string => typeof v === "string" && v.length > 0);
     const allowOrigin =
       origin && allowed.includes(origin) ? origin : allowed[0] ?? "*";
-    return c.json({ message }, status, {
-      headers: {
-        "Access-Control-Allow-Origin": allowOrigin,
-        "Access-Control-Allow-Credentials": "true",
-      },
-    });
+    const res = c.json({ message }, status);
+    res.headers.set("Access-Control-Allow-Origin", allowOrigin);
+    res.headers.set("Access-Control-Allow-Credentials", "true");
+    return res;
   });
 
 export default app;
