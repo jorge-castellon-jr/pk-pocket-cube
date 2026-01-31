@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, eq } from "drizzle-orm";
 import type { HonoAppContext } from "../auth";
+import type { Env } from "../env-types";
 import { withAuth } from "../middlewares/auth.middleware";
 import {
   account,
@@ -9,6 +10,7 @@ import {
   draftPoolExclusion,
   draftPoolPick,
 } from "../db/schema";
+import { isCacheReady, getCachedCards } from "../lib/tcgp-cache";
 
 const API_BASE = "https://api.tcgdex.net/v2/en";
 const POKEAPI_BASE = "https://pokeapi.co/api/v2";
@@ -57,13 +59,15 @@ type PokemonSpeciesResponse = {
 const exclusionScopes = new Set(["evolution", "shop", "both"]);
 type DraftContext = Context<any, string>;
 
-export const draftPool = new Hono<HonoAppContext>()
+export const draftPool = new Hono<HonoAppContext & { Bindings: Env }>()
   .get("/", async (c) => {
     const db = c.var.db;
-    const [picks, exclusions, cards, isEditor] = await Promise.all([
+    const cards: DraftPoolCard[] = (await isCacheReady(c.env.DB))
+      ? (await getCachedCards(c.env.DB, { includeNoImage: true })) as DraftPoolCard[]
+      : await fetchAllCardsFromTcgdex(true);
+    const [picks, exclusions, isEditor] = await Promise.all([
       db.select().from(draftPoolPick),
       db.select().from(draftPoolExclusion),
-      fetchAllCards(true),
       getEditorStatus(c),
     ]);
 
@@ -334,7 +338,7 @@ function normalizePokemonName(name: string) {
     .replace(/^-|-$/g, "");
 }
 
-async function fetchAllCards(withDetail: boolean) {
+async function fetchAllCardsFromTcgdex(withDetail: boolean) {
   const cacheKey = new Request(
     `${API_BASE}/cache/tcgp/cards?detail=${withDetail ? "1" : "0"}&includeNoImage=1`,
   );

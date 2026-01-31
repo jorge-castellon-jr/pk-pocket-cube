@@ -82,11 +82,22 @@ function DatabasePage() {
     selectedSet === "all"
       ? cards
       : cards.filter((card) => card.setId === selectedSet);
+  const rarityOptions = Array.from(
+    new Set(
+      cards
+        .map((card) => card.rarity)
+        .filter((rarity): rarity is string => Boolean(rarity))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  const sortedRarities = sortRarities(rarityOptions);
+  const effectiveRarity =
+    sortedRarities.length > 0 ? selectedRarity : "all";
   const rarityFiltered =
-    selectedRarity === "all"
+    effectiveRarity === "all"
       ? filteredCards
       : filteredCards.filter(
-          (card) => card.rarity?.toLowerCase() === selectedRarity.toLowerCase()
+          (card) =>
+            card.rarity?.toLowerCase() === effectiveRarity.toLowerCase()
         );
   const searchFiltered =
     searchQuery.trim().length === 0
@@ -107,15 +118,6 @@ function DatabasePage() {
           : a.name.localeCompare(b.name);
     return sortOrder === "desc" ? compareValue * -1 : compareValue;
   });
-  const rarityOptions = Array.from(
-    new Set(
-      cards
-        .map((card) => card.rarity)
-        .filter((rarity): rarity is string => Boolean(rarity))
-    )
-  ).sort((a, b) => a.localeCompare(b));
-  const sortedRarities = sortRarities(rarityOptions);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-blue-950/90 backdrop-blur">
@@ -192,7 +194,7 @@ function DatabasePage() {
                 <div className="flex flex-wrap gap-2">
                   <RarityChip
                     rarity="all"
-                    selected={selectedRarity === "all"}
+                    selected={effectiveRarity === "all"}
                     onSelect={(value) =>
                       navigate({
                         search: (prev) => ({
@@ -206,7 +208,7 @@ function DatabasePage() {
                     <RarityChip
                       key={rarity}
                       rarity={rarity}
-                      selected={selectedRarity === rarity}
+                      selected={effectiveRarity === rarity}
                       onSelect={(value) =>
                         navigate({
                           search: (prev) => ({

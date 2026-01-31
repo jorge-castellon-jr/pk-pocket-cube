@@ -10,14 +10,21 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RulesRouteImport } from './routes/rules'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as DraftPoolRouteImport } from './routes/draft-pool'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CardCardIdRouteImport } from './routes/card.$cardId'
+import { Route as AdminCacheRouteImport } from './routes/admin.cache'
 
 const RulesRoute = RulesRouteImport.update({
   id: '/rules',
   path: '/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DraftPoolRoute = DraftPoolRouteImport.update({
@@ -40,19 +47,28 @@ const CardCardIdRoute = CardCardIdRouteImport.update({
   path: '/card/$cardId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCacheRoute = AdminCacheRouteImport.update({
+  id: '/admin/cache',
+  path: '/admin/cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
   '/draft-pool': typeof DraftPoolRoute
+  '/login': typeof LoginRoute
   '/rules': typeof RulesRoute
+  '/admin/cache': typeof AdminCacheRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
   '/draft-pool': typeof DraftPoolRoute
+  '/login': typeof LoginRoute
   '/rules': typeof RulesRoute
+  '/admin/cache': typeof AdminCacheRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRoutesById {
@@ -60,20 +76,38 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
   '/draft-pool': typeof DraftPoolRoute
+  '/login': typeof LoginRoute
   '/rules': typeof RulesRoute
+  '/admin/cache': typeof AdminCacheRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/database' | '/draft-pool' | '/rules' | '/card/$cardId'
+  fullPaths:
+    | '/'
+    | '/database'
+    | '/draft-pool'
+    | '/login'
+    | '/rules'
+    | '/admin/cache'
+    | '/card/$cardId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/database' | '/draft-pool' | '/rules' | '/card/$cardId'
+  to:
+    | '/'
+    | '/database'
+    | '/draft-pool'
+    | '/login'
+    | '/rules'
+    | '/admin/cache'
+    | '/card/$cardId'
   id:
     | '__root__'
     | '/'
     | '/database'
     | '/draft-pool'
+    | '/login'
     | '/rules'
+    | '/admin/cache'
     | '/card/$cardId'
   fileRoutesById: FileRoutesById
 }
@@ -81,7 +115,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DatabaseRoute: typeof DatabaseRoute
   DraftPoolRoute: typeof DraftPoolRoute
+  LoginRoute: typeof LoginRoute
   RulesRoute: typeof RulesRoute
+  AdminCacheRoute: typeof AdminCacheRoute
   CardCardIdRoute: typeof CardCardIdRoute
 }
 
@@ -92,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/rules'
       fullPath: '/rules'
       preLoaderRoute: typeof RulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/draft-pool': {
@@ -122,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardCardIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/cache': {
+      id: '/admin/cache'
+      path: '/admin/cache'
+      fullPath: '/admin/cache'
+      preLoaderRoute: typeof AdminCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -129,7 +179,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DatabaseRoute: DatabaseRoute,
   DraftPoolRoute: DraftPoolRoute,
+  LoginRoute: LoginRoute,
   RulesRoute: RulesRoute,
+  AdminCacheRoute: AdminCacheRoute,
   CardCardIdRoute: CardCardIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -18,6 +18,12 @@ function HomePage() {
           <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-yellow-300 to-red-500 shadow-lg" />
           <span className="font-semibold tracking-wide">Pokémon TCG Pocket</span>
         </div>
+        <Link
+          to="/login"
+          className="text-sm text-white/70 hover:text-white transition"
+        >
+          Login
+        </Link>
       </header>
 
       <main className="relative z-10 max-w-5xl mx-auto px-6 py-16 text-center flex flex-col gap-10">

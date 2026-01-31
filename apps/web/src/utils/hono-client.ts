@@ -7,6 +7,6 @@ const hcWithType = (...args: Parameters<typeof hc>): Client =>
 
 const baseUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:8787";
 
-export const client = hcWithType(baseUrl, {
+export const client: Client = hcWithType(baseUrl, {
   init: { credentials: "include" },
 });

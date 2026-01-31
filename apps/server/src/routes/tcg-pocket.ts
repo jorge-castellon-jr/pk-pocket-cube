@@ -1,5 +1,14 @@
 import { Hono } from "hono";
 import type { HonoAppContext } from "../auth";
+import type { Env } from "../env-types";
+import {
+  getCacheStatus,
+  runCacheWarmChunk,
+  isCacheReady,
+  getCachedSets,
+  getCachedCards,
+  getCachedCardById,
+} from "../lib/tcgp-cache";
 
 const API_BASE = "https://api.tcgdex.net/v2/en";
 const POKEAPI_BASE = "https://pokeapi.co/api/v2";
@@ -88,112 +97,133 @@ function collectChainNames(node: EvolutionChainLink, list: string[] = []) {
   return list;
 }
 
-export const tcgPocket = new Hono<HonoAppContext>().get("/cards", async (c) => {
-  try {
-    const withDetail = c.req.query("detail") === "1";
-    const includeNoImage = c.req.query("includeNoImage") === "1";
-    const cacheKey = new Request(
-      `${API_BASE}/cache/tcgp/cards?detail=${withDetail ? "1" : "0"}&includeNoImage=${includeNoImage ? "1" : "0"}`
+export const tcgPocket = new Hono<HonoAppContext & { Bindings: Env }>()
+  .get("/cache-status", async (c) => {
+    const status = await getCacheStatus(c.env.DB);
+    return c.json(status, 200);
+  })
+  .post("/cache-warm", async (c) => {
+    const result = await runCacheWarmChunk(c.env.DB);
+    return c.json(
+      { status: result.status, didWork: result.didWork, message: result.message },
+      200,
     );
-    const cache = caches.default;
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      return cached;
-    }
-    const seriesRes = await fetch(`${API_BASE}/series/tcgp`);
-    if (!seriesRes.ok) {
-      throw new Error(`Series fetch failed: ${seriesRes.status}`);
-    }
-    const series = (await seriesRes.json()) as TCGPocketSeries;
+  })
+  .get("/cards", async (c) => {
+    try {
+      const includeNoImage = c.req.query("includeNoImage") === "1";
 
-    const sets = await Promise.all(
-      series.sets.map(async (set) => {
-        const setRes = await fetch(`${API_BASE}/sets/${set.id}`);
-        if (!setRes.ok) return null;
-        return (await setRes.json()) as TCGPocketSet;
-      }),
-    );
+      const useDbCache = await isCacheReady(c.env.DB);
+      if (useDbCache) {
+        const cards = await getCachedCards(c.env.DB, { includeNoImage });
+        const response = c.json(cards, 200);
+        response.headers.set("Cache-Control", `public, max-age=${CACHE_TTL_SECONDS}`);
+        return response;
+      }
 
-    const baseCards = sets
-      .filter((set): set is TCGPocketSet => Boolean(set))
-      .flatMap((set) =>
-        set.cards
-          .filter((card) => (includeNoImage ? true : Boolean(card.image)))
-          .map((card) => ({
-            id: card.id,
-            name: card.name,
-            localId: card.localId,
-            image: card.image,
-            setId: set.id,
-            setName: set.name,
-          }))
+      const withoutDetailKey = new Request(
+        `${API_BASE}/cache/tcgp/cards?detail=0&includeNoImage=${includeNoImage ? "1" : "0"}`
+      );
+      const cache = caches.default;
+      const cached = await cache.match(withoutDetailKey);
+      if (cached) {
+        return cached;
+      }
+      const seriesRes = await fetch(`${API_BASE}/series/tcgp`);
+      if (!seriesRes.ok) {
+        throw new Error(`Series fetch failed: ${seriesRes.status}`);
+      }
+      const series = (await seriesRes.json()) as TCGPocketSeries;
+
+      const sets = await Promise.all(
+        series.sets.map(async (set) => {
+          const setRes = await fetch(`${API_BASE}/sets/${set.id}`);
+          if (!setRes.ok) return null;
+          return (await setRes.json()) as TCGPocketSet;
+        }),
       );
 
-    let cards: TCGPocketCard[] = baseCards;
-    if (withDetail) {
-      cards = await mapWithConcurrency(baseCards, 6, async (card) => {
-        const cardRes = await fetch(`${API_BASE}/cards/${card.id}`);
-        if (!cardRes.ok) return card;
-        const detail = (await cardRes.json()) as { rarity?: string };
-        return {
-          ...card,
-          rarity: detail?.rarity,
-        };
-      });
-    }
+      const baseCards = sets
+        .filter((set): set is TCGPocketSet => Boolean(set))
+        .flatMap((set) =>
+          set.cards
+            .filter((card) => (includeNoImage ? true : Boolean(card.image)))
+            .map((card) => ({
+              id: card.id,
+              name: card.name,
+              localId: card.localId,
+              image: card.image,
+              setId: set.id,
+              setName: set.name,
+            }))
+        );
 
-    const response = c.json(cards, 200);
-    response.headers.set(
-      "Cache-Control",
-      `public, max-age=${CACHE_TTL_SECONDS}`
-    );
-    await cache.put(cacheKey, response.clone());
-    return response;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown fetch error";
-    return c.json(
-      { message: "Failed to fetch TCG Pocket cards.", details: message },
-      500,
-    );
-  }
-}).get("/cards/:id", async (c) => {
-  const { id } = c.req.param();
-  try {
-    const cardRes = await fetch(`${API_BASE}/cards/${id}`);
-    if (!cardRes.ok) {
+      const cards: TCGPocketCard[] = baseCards;
+
+      const response = c.json(cards, 200);
+      response.headers.set(
+        "Cache-Control",
+        `public, max-age=${CACHE_TTL_SECONDS}`
+      );
+      await cache.put(withoutDetailKey, response.clone());
+      return response;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown fetch error";
       return c.json(
-        { message: "Card not found.", details: `Status ${cardRes.status}` },
-        404,
+        { message: "Failed to fetch TCG Pocket cards.", details: message },
+        500,
       );
     }
-    const card = (await cardRes.json()) as Record<string, unknown>;
-    return c.json(card, 200);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown fetch error";
-    return c.json(
-      { message: "Failed to fetch TCG Pocket card.", details: message },
-      500,
-    );
-  }
-}).get("/sets", async (c) => {
-  try {
-    const seriesRes = await fetch(`${API_BASE}/series/tcgp`);
-    if (!seriesRes.ok) {
-      throw new Error(`Series fetch failed: ${seriesRes.status}`);
+  })
+  .get("/cards/:id", async (c) => {
+    const { id } = c.req.param();
+    try {
+      const useDbCache = await isCacheReady(c.env.DB);
+      if (useDbCache) {
+        const card = await getCachedCardById(c.env.DB, id);
+        if (card) return c.json(card, 200);
+      }
+      const cardRes = await fetch(`${API_BASE}/cards/${id}`);
+      if (!cardRes.ok) {
+        return c.json(
+          { message: "Card not found.", details: `Status ${cardRes.status}` },
+          404,
+        );
+      }
+      const card = (await cardRes.json()) as Record<string, unknown>;
+      return c.json(card, 200);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown fetch error";
+      return c.json(
+        { message: "Failed to fetch TCG Pocket card.", details: message },
+        500,
+      );
     }
-    const series = (await seriesRes.json()) as TCGPocketSeries;
-    return c.json(series.sets, 200);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown fetch error";
-    return c.json(
-      { message: "Failed to fetch TCG Pocket sets.", details: message },
-      500,
-    );
-  }
-}).get("/evolution/:name", async (c) => {
+  })
+  .get("/sets", async (c) => {
+    try {
+      const useDbCache = await isCacheReady(c.env.DB);
+      if (useDbCache) {
+        const sets = await getCachedSets(c.env.DB);
+        return c.json(sets, 200);
+      }
+      const seriesRes = await fetch(`${API_BASE}/series/tcgp`);
+      if (!seriesRes.ok) {
+        throw new Error(`Series fetch failed: ${seriesRes.status}`);
+      }
+      const series = (await seriesRes.json()) as TCGPocketSeries;
+      return c.json(series.sets, 200);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown fetch error";
+      return c.json(
+        { message: "Failed to fetch TCG Pocket sets.", details: message },
+        500,
+      );
+    }
+  }).get("/evolution/:name", async (c) => {
   const { name } = c.req.param();
   try {
     const normalized = normalizePokemonName(name);

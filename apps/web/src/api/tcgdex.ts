@@ -56,7 +56,7 @@ export interface TCGdexSetListItem {
   cardCount?: { total: number; official?: number };
 }
 
-/** Fetches all TCG Pocket cards by loading the series then each set. */
+/** Fetches all TCG Pocket cards (with rarity when served from app cache). */
 export async function fetchAllTCGPocketCards(): Promise<TCGdexCardWithSet[]> {
   const res = await client["tcg-pocket"].cards.$get({
     query: { detail: "1" },
