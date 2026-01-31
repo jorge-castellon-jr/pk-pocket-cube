@@ -38,6 +38,12 @@ function HomePage() {
           <Button variant="primary" size="lg" asChild>
             <Link to="/database">Enter the Database</Link>
           </Button>
+          <Button variant="outline" size="lg" asChild>
+            <Link to="/draft-pool">View Draft Pool</Link>
+          </Button>
+          <Button variant="outline" size="lg" asChild>
+            <Link to="/rules">Draft Rules</Link>
+          </Button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10 text-left">
           {[

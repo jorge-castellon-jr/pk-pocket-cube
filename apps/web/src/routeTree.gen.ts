@@ -9,10 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RulesRouteImport } from './routes/rules'
+import { Route as DraftPoolRouteImport } from './routes/draft-pool'
 import { Route as DatabaseRouteImport } from './routes/database'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CardCardIdRouteImport } from './routes/card.$cardId'
 
+const RulesRoute = RulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DraftPoolRoute = DraftPoolRouteImport.update({
+  id: '/draft-pool',
+  path: '/draft-pool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DatabaseRoute = DatabaseRouteImport.update({
   id: '/database',
   path: '/database',
@@ -32,35 +44,63 @@ const CardCardIdRoute = CardCardIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
+  '/draft-pool': typeof DraftPoolRoute
+  '/rules': typeof RulesRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
+  '/draft-pool': typeof DraftPoolRoute
+  '/rules': typeof RulesRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/database': typeof DatabaseRoute
+  '/draft-pool': typeof DraftPoolRoute
+  '/rules': typeof RulesRoute
   '/card/$cardId': typeof CardCardIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/database' | '/card/$cardId'
+  fullPaths: '/' | '/database' | '/draft-pool' | '/rules' | '/card/$cardId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/database' | '/card/$cardId'
-  id: '__root__' | '/' | '/database' | '/card/$cardId'
+  to: '/' | '/database' | '/draft-pool' | '/rules' | '/card/$cardId'
+  id:
+    | '__root__'
+    | '/'
+    | '/database'
+    | '/draft-pool'
+    | '/rules'
+    | '/card/$cardId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DatabaseRoute: typeof DatabaseRoute
+  DraftPoolRoute: typeof DraftPoolRoute
+  RulesRoute: typeof RulesRoute
   CardCardIdRoute: typeof CardCardIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rules': {
+      id: '/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof RulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/draft-pool': {
+      id: '/draft-pool'
+      path: '/draft-pool'
+      fullPath: '/draft-pool'
+      preLoaderRoute: typeof DraftPoolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/database': {
       id: '/database'
       path: '/database'
@@ -88,6 +128,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DatabaseRoute: DatabaseRoute,
+  DraftPoolRoute: DraftPoolRoute,
+  RulesRoute: RulesRoute,
   CardCardIdRoute: CardCardIdRoute,
 }
 export const routeTree = rootRouteImport

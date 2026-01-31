@@ -1,11 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchTCGPocketCardById,
   getCardImageUrl,
   fetchAllTCGPocketCardsIncludingNoImage,
   fetchEvolutionData,
 } from "../api/tcgdex";
+import {
+  fetchDraftPool,
+  updateDraftPoolExclusions,
+  updateDraftPoolPicks,
+  type DraftPoolExclusion,
+} from "../api/draft-pool";
 import { Button } from "@repo/ui/button";
 import {
   Leaf,
@@ -24,13 +30,25 @@ import {
   Star,
 } from "lucide-react";
 import { normalizePokemonName } from "../api/pokeapi";
+import { z } from "zod";
 
 export const Route = createFileRoute("/card/$cardId")({
+  validateSearch: (search) =>
+    z
+      .object({
+        draftMode: z.string().optional(),
+        draftTab: z.string().optional(),
+      })
+      .parse(search),
   component: CardDetailPage,
 });
 
 function CardDetailPage() {
   const { cardId } = Route.useParams();
+  const search = Route.useSearch();
+  const isDraftMode = search.draftMode === "1";
+  const draftTab = search.draftTab === "shop" ? "shop" : "draft";
+  const queryClient = useQueryClient();
   const cardQuery = useQuery({
     queryKey: ["tcgpocket", "card", cardId],
     queryFn: () => fetchTCGPocketCardById(cardId),
@@ -45,6 +63,19 @@ function CardDetailPage() {
     queryFn: fetchAllTCGPocketCardsIncludingNoImage,
     staleTime: 1000 * 60 * 10,
     enabled: Boolean(evolutionsQuery.data),
+  });
+  const draftPoolQuery = useQuery({
+    queryKey: ["draft-pool"],
+    queryFn: fetchDraftPool,
+    enabled: isDraftMode,
+  });
+  const updatePicksMutation = useMutation({
+    mutationFn: updateDraftPoolPicks,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
+  });
+  const updateExclusionsMutation = useMutation({
+    mutationFn: updateDraftPoolExclusions,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
   });
 
   if (cardQuery.isPending) {
@@ -73,6 +104,11 @@ function CardDetailPage() {
   const imgUrl = getCardImageUrl(card, "large", "webp");
   const evolutionData = evolutionsQuery.data;
   const allCards = allCardsQuery.data ?? [];
+  const draftPool = draftPoolQuery.data;
+  const isEditor = draftPool?.isEditor ?? false;
+  const isPick = draftPool?.picks.some((pick) => pick.id === card.id) ?? false;
+  const exclusion =
+    draftPool?.exclusions.find((item) => item.cardId === card.id) ?? null;
   const evolvesToNames = evolutionData?.evolvesToNames ?? [];
   const sameNameMatches = allCards.filter(
     (c) =>
@@ -99,16 +135,28 @@ function CardDetailPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-indigo-950 to-zinc-950 text-white">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-blue-950/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link
-            to="/database"
-            className="text-white/70 hover:text-white text-sm"
-          >
-            ← Back to database
-          </Link>
+          {isDraftMode ? (
+            <a
+              href="/draft-pool"
+              className="text-white/70 hover:text-white text-sm"
+            >
+              ← Back to draft pool
+            </a>
+          ) : (
+            <Link to="/database" className="text-white/70 hover:text-white text-sm">
+              ← Back to database
+            </Link>
+          )}
           <h1 className="text-lg font-semibold">{card.name}</h1>
-          <span className="text-sm text-white/70">
-            {card.set?.name ?? "TCG Pocket"}
-          </span>
+          {isDraftMode ? (
+            <span className="text-xs uppercase tracking-[0.3em] text-yellow-200">
+              Draft Mode
+            </span>
+          ) : (
+            <span className="text-sm text-white/70">
+              {card.set?.name ?? "TCG Pocket"}
+            </span>
+          )}
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-10">
@@ -124,6 +172,73 @@ function CardDetailPage() {
           />
         </div>
         <div className="space-y-6">
+          {isDraftMode && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+              <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">
+                Draft Controls
+              </p>
+              {!isEditor ? (
+                <p className="text-sm text-white/60">
+                  You can view draft mode, but editor access is required to update
+                  picks or exclusions.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant={isPick ? "outline" : "primary"}
+                    size="sm"
+                    onClick={() => {
+                      const picks = draftPool?.picks ?? [];
+                      const next = isPick
+                        ? picks.filter((pick) => pick.id !== card.id)
+                        : [...picks, card];
+                      updatePicksMutation.mutate(next.map((pick) => pick.id));
+                    }}
+                  >
+                    {isPick ? "Remove from picks" : "Add to picks"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const next = applyExclusionUpdate(
+                        draftPool?.exclusions ?? [],
+                        card.id,
+                        "evolution",
+                      );
+                      updateExclusionsMutation.mutate(next);
+                    }}
+                  >
+                    {exclusion?.scope === "evolution" || exclusion?.scope === "both"
+                      ? "Undo evolution exclusion"
+                      : "Exclude from evolutions"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const next = applyExclusionUpdate(
+                        draftPool?.exclusions ?? [],
+                        card.id,
+                        "shop",
+                      );
+                      updateExclusionsMutation.mutate(next);
+                    }}
+                  >
+                    {exclusion?.scope === "shop" || exclusion?.scope === "both"
+                      ? "Undo shop exclusion"
+                      : "Exclude from shop"}
+                  </Button>
+                  <a
+                    href="/draft-pool"
+                    className="text-xs text-white/60 hover:text-white/80"
+                  >
+                    View draft pool
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-yellow-200">
               Card Details
@@ -205,6 +320,8 @@ function CardDetailPage() {
                     id={evo.id}
                     name={evo.name}
                     image={evo.image}
+                    draftMode={isDraftMode}
+                    draftTab={draftTab}
                   />
                 ))}
               </div>
@@ -224,6 +341,8 @@ function CardDetailPage() {
                         id={evo.id}
                         name={evo.name}
                         image={evo.image}
+                        draftMode={isDraftMode}
+                        draftTab={draftTab}
                       />
                     ))}
                   </div>
@@ -246,6 +365,8 @@ function CardDetailPage() {
                       id={evo.id}
                       name={evo.name}
                       image={evo.image}
+                      draftMode={isDraftMode}
+                      draftTab={draftTab}
                     />
                   ))}
                 </div>
@@ -418,16 +539,28 @@ function EvolutionCardLink({
   id,
   name,
   image,
+  draftMode,
+  draftTab,
 }: {
   id: string;
   name: string;
   image: string;
+  draftMode?: boolean;
+  draftTab?: "draft" | "shop";
 }) {
   const imgUrl = getCardImageUrl({ id, name, localId: "", image }, "small");
   return (
     <Link
       to="/card/$cardId"
       params={{ cardId: id }}
+      search={
+        draftMode
+          ? {
+              draftMode: "1",
+              draftTab,
+            }
+          : undefined
+      }
       className="group relative block"
     >
       <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">
@@ -446,5 +579,28 @@ function EvolutionCardLink({
         </div>
       </div>
     </Link>
+  );
+}
+
+function applyExclusionUpdate(
+  exclusions: DraftPoolExclusion[],
+  cardId: string,
+  scope: "evolution" | "shop",
+): DraftPoolExclusion[] {
+  const existing = exclusions.find((item) => item.cardId === cardId);
+  if (!existing) {
+    return [...exclusions, { cardId, scope }];
+  }
+  if (existing.scope === scope) {
+    return exclusions.filter((item) => item.cardId !== cardId);
+  }
+  if (existing.scope === "both") {
+    const nextScope = scope === "evolution" ? "shop" : "evolution";
+    return exclusions.map((item) =>
+      item.cardId === cardId ? { ...item, scope: nextScope } : item,
+    );
+  }
+  return exclusions.map((item) =>
+    item.cardId === cardId ? { ...item, scope: "both" } : item,
   );
 }

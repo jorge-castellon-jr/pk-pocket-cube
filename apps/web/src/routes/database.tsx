@@ -17,6 +17,7 @@ const searchSchema = z.object({
   order: z.enum(["asc", "desc"]).optional(),
   rarity: z.string().optional(),
   q: z.string().optional(),
+  draftMode: z.string().optional(),
 });
 
 export const Route = createFileRoute("/database")({
@@ -32,6 +33,7 @@ function DatabasePage() {
   const sortOrder = search.order ?? "asc";
   const selectedRarity = search.rarity ?? "all";
   const searchQuery = search.q ?? "";
+  const isDraftMode = search.draftMode === "1";
 
   const setsQuery = useQuery({
     queryKey: ["tcgpocket", "sets"],
@@ -271,7 +273,7 @@ function DatabasePage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {sortedCards.map((card) => (
-            <CardItem key={card.id} card={card} />
+            <CardItem key={card.id} card={card} draftMode={isDraftMode} />
           ))}
         </div>
       </main>
@@ -336,12 +338,19 @@ function ensureWebpExtension(url: string) {
   return `${url}.webp`;
 }
 
-function CardItem({ card }: { card: TCGdexCardWithSet }) {
+function CardItem({
+  card,
+  draftMode,
+}: {
+  card: TCGdexCardWithSet;
+  draftMode: boolean;
+}) {
   const imgUrl = getCardImageUrl(card, "small");
   return (
     <Link
       to="/card/$cardId"
       params={{ cardId: card.id }}
+      search={draftMode ? { draftMode: "1" } : undefined}
       className="group relative block"
     >
       <div className="aspect-[2.5/3.5] rounded-2xl bg-blue-950/30 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-[1.03] relative">

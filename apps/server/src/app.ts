@@ -5,6 +5,7 @@ import type { Env } from "./env-types";
 import { getAuth, type HonoAppContext } from "./auth";
 import { getDb } from "./db/index";
 import { tcgPocket } from "./routes/tcg-pocket";
+import { draftPool } from "./routes/draft-pool";
 
 const app = new Hono<HonoAppContext & { Bindings: Env }>()
   // ------------------------------------------------------------
@@ -27,16 +28,19 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
             c.env.WEB_URL,
             "http://localhost:5173",
             "http://localhost:5174",
-          ].filter(Boolean)
+            "https://pocket.castellon.dev",
+          ].filter(Boolean),
         );
-        return origin && allowed.has(origin) ? origin : allowed.values().next().value;
+        return origin && allowed.has(origin)
+          ? origin
+          : allowed.values().next().value;
       },
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["POST", "GET", "OPTIONS"],
+      allowMethods: ["POST", "GET", "PUT", "OPTIONS"],
       exposeHeaders: ["Content-Length"],
       maxAge: 600,
       credentials: true,
-    })
+    }),
   )
   // ------------------------------------------------------------
   // AUTH
@@ -60,7 +64,8 @@ const app = new Hono<HonoAppContext & { Bindings: Env }>()
     return c.var.auth.handler(c.req.raw);
   })
   .get("/", (c) => c.json({ message: "Hello World" }))
-  .route("/tcg-pocket", tcgPocket);
+  .route("/tcg-pocket", tcgPocket)
+  .route("/draft-pool", draftPool);
 
 export default app;
 

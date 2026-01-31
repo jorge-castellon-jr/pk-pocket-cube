@@ -3,7 +3,26 @@ main = "src/worker.ts"
 compatibility_date = "2024-09-26"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+WEB_URL = "http://localhost:5173"
+VITE_SERVER_URL = "http://localhost:8787"
+
+[env.prod.vars]
+WEB_URL = "https://pocket.castellon.dev"
+VITE_SERVER_URL = "https://pk-pocket-cube-api.castellon.workers.dev"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 [[d1_databases]]
+binding = "DB"
+database_name = "pk-pocket-cube-db"
+database_id = "339ee091-d1fe-4d5a-a91a-aa6a63a2a59e"
+migrations_dir = "src/drizzle"
+
+[[env.prod.d1_databases]]
 binding = "DB"
 database_name = "pk-pocket-cube-db"
 database_id = "339ee091-d1fe-4d5a-a91a-aa6a63a2a59e"
