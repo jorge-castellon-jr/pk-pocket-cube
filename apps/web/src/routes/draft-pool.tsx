@@ -43,6 +43,8 @@ function DraftPoolPage() {
     () => new Map(exclusions.map((item) => [item.cardId, item.scope])),
     [exclusions],
   );
+  const [showViewerPreview, setShowViewerPreview] = useState(false);
+  const showEditorUI = isEditor && !showViewerPreview;
 
   const handleRemovePick = (cardId: string) => {
     const nextIds = picks.filter((pick) => pick.id !== cardId).map((pick) => pick.id);
@@ -103,16 +105,26 @@ function DraftPoolPage() {
                 Picks, evolutions, and shop variants
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <Button variant="outline" asChild>
                 <Link to="/database" search={{ draftMode: "1" }}>
                   Browse cards (draft mode)
                 </Link>
               </Button>
-              {isEditor && (
+              {showEditorUI && (
                 <span className="text-xs uppercase tracking-[0.2em] text-emerald-200">
                   Editor Access
                 </span>
+              )}
+              {isEditor && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white/60 hover:text-white/80"
+                  onClick={() => setShowViewerPreview((v) => !v)}
+                >
+                  {showViewerPreview ? "Exit preview" : "Preview as viewer"}
+                </Button>
               )}
             </div>
           </div>
@@ -134,42 +146,44 @@ function DraftPoolPage() {
           </div>
         </section>
 
-        <section className="space-y-8">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">
-              Draft Picks
-            </p>
-            <p className="text-white/70 text-sm mt-2">
-              Core cards that drive the evolution and shop pools.
-            </p>
-          </div>
-          {picks.length === 0 ? (
-            <p className="text-white/60 text-sm">
-              No draft picks yet. Editors can add picks from draft-mode card pages.
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {picks.map((card) => (
-                <DraftCardTile
-                  key={card.id}
-                  card={card}
-                  draftTab={activeTab}
-                  actions={
-                    isEditor ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRemovePick(card.id)}
-                      >
-                        Remove
-                      </Button>
-                    ) : null
-                  }
-                />
-              ))}
+        {activeTab === "draft" && (
+          <section className="space-y-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">
+                Draft Picks
+              </p>
+              <p className="text-white/70 text-sm mt-2">
+                Core cards that drive the evolution and shop pools.
+              </p>
             </div>
-          )}
-        </section>
+            {picks.length === 0 ? (
+              <p className="text-white/60 text-sm">
+                No draft picks yet. Editors can add picks from draft-mode card pages.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {picks.map((card) => (
+                  <DraftCardTile
+                    key={card.id}
+                    card={card}
+                    draftTab={activeTab}
+                    actions={
+                      showEditorUI ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemovePick(card.id)}
+                        >
+                          Remove
+                        </Button>
+                      ) : null
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="space-y-8">
           <div>
@@ -189,7 +203,15 @@ function DraftPoolPage() {
             </p>
           ) : (
             <div className="space-y-10">
-              {picks.map((pick) => {
+              {picks
+                .filter((pick) => {
+                  const groupCards =
+                    activeTab === "draft"
+                      ? evolutionsByPick[pick.id] ?? []
+                      : shopByPick[pick.id] ?? [];
+                  return groupCards.length > 0;
+                })
+                .map((pick) => {
                 const groupCards =
                   activeTab === "draft"
                     ? evolutionsByPick[pick.id] ?? []
@@ -209,44 +231,38 @@ function DraftPoolPage() {
                         <p className="text-xs text-white/50">{pick.setName}</p>
                       </div>
                     </div>
-                    {groupCards.length === 0 ? (
-                      <p className="text-white/50 text-sm">
-                        No cards available after exclusions.
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {groupCards.map((card) => {
-                          const scope = exclusionMap.get(card.id);
-                          const isExcluded =
-                            activeTab === "draft"
-                              ? scope === "evolution" || scope === "both"
-                              : scope === "shop" || scope === "both";
-                          return (
-                            <DraftCardTile
-                              key={card.id}
-                              card={card}
-                              draftTab={activeTab}
-                              actions={
-                                isEditor ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      handleToggleExclusion(
-                                        card.id,
-                                        activeTab === "draft" ? "evolution" : "shop",
-                                      )
-                                    }
-                                  >
-                                    {isExcluded ? "Undo Exclude" : "Exclude"}
-                                  </Button>
-                                ) : null
-                              }
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {groupCards.map((card) => {
+                        const scope = exclusionMap.get(card.id);
+                        const isExcluded =
+                          activeTab === "draft"
+                            ? scope === "evolution" || scope === "both"
+                            : scope === "shop" || scope === "both";
+                        return (
+                          <DraftCardTile
+                            key={card.id}
+                            card={card}
+                            draftTab={activeTab}
+                            actions={
+                              showEditorUI ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleToggleExclusion(
+                                      card.id,
+                                      activeTab === "draft" ? "evolution" : "shop",
+                                    )
+                                  }
+                                >
+                                  {isExcluded ? "Undo Exclude" : "Exclude"}
+                                </Button>
+                              ) : null
+                            }
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}

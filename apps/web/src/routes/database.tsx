@@ -12,12 +12,10 @@ import {
 import {
   fetchDraftPool,
   updateDraftPoolPicks,
-  updateDraftPoolExclusions,
-  type DraftPoolExclusion,
 } from "../api/draft-pool";
 import { Button } from "@repo/ui/button";
 import { z } from "zod";
-import { Diamond, Star, Crown, Sparkles, Plus, Minus, Ban } from "lucide-react";
+import { Diamond, Star, Crown, Sparkles, Plus, Minus } from "lucide-react";
 
 const ENERGY_TYPES = [
   "grass",
@@ -111,13 +109,7 @@ function DatabasePage() {
     mutationFn: updateDraftPoolPicks,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
   });
-  const updateExclusionsMutation = useMutation({
-    mutationFn: updateDraftPoolExclusions,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["draft-pool"] }),
-  });
-
   const draftPicks = draftPoolQuery.data?.picks ?? [];
-  const draftExclusions = draftPoolQuery.data?.exclusions ?? [];
   const isDraftEditor = draftPoolQuery.data?.isEditor ?? false;
 
   const handleAddPick = (cardId: string) => {
@@ -127,12 +119,6 @@ function DatabasePage() {
   const handleRemovePick = (cardId: string) => {
     const nextIds = draftPicks.filter((p) => p.id !== cardId).map((p) => p.id);
     updatePicksMutation.mutate(nextIds);
-  };
-  const handleExclude = (cardId: string) => {
-    const next: DraftPoolExclusion[] = draftExclusions.filter(
-      (e) => e.cardId !== cardId
-    ).concat([{ cardId, scope: "both" }]);
-    updateExclusionsMutation.mutate(next);
   };
 
   const setsQuery = useQuery({
@@ -145,6 +131,20 @@ function DatabasePage() {
     queryFn: fetchAllTCGPocketCards,
     staleTime: 1000 * 60 * 10, // 10 min
   });
+
+  const cards = cardsQuery.data ?? [];
+  const cardIds = useMemo(() => cards.map((c) => c.id).sort(), [cards]);
+  const listHasNoTypes =
+    cards.length > 0 &&
+    cards.slice(0, 5).every((c) => !c.types?.length);
+  const typesQuery = useQuery({
+    queryKey: ["tcgpocket", "card-types", cardIds],
+    queryFn: () => fetchTypesForCardIds(cardIds),
+    enabled: listHasNoTypes && cardIds.length > 0,
+    staleTime: 1000 * 60 * 30,
+  });
+  const typesMap = typesQuery.data ?? {};
+  const sets = setsQuery.data ?? [];
 
   if (cardsQuery.isPending) {
     return (
@@ -171,20 +171,6 @@ function DatabasePage() {
       </div>
     );
   }
-
-  const cards = cardsQuery.data ?? [];
-  const cardIds = useMemo(() => cards.map((c) => c.id).sort(), [cards]);
-  const listHasNoTypes =
-    cards.length > 0 &&
-    cards.slice(0, 5).every((c) => !c.types?.length);
-  const typesQuery = useQuery({
-    queryKey: ["tcgpocket", "card-types", cardIds],
-    queryFn: () => fetchTypesForCardIds(cardIds),
-    enabled: listHasNoTypes && cardIds.length > 0,
-    staleTime: 1000 * 60 * 30,
-  });
-  const typesMap = typesQuery.data ?? {};
-  const sets = setsQuery.data ?? [];
   const totalCards = sets.reduce(
     (sum, set) => sum + (set.cardCount?.total ?? 0),
     0
@@ -443,9 +429,7 @@ function DatabasePage() {
               isPicked={draftPicks.some((p) => p.id === card.id)}
               onAddPick={handleAddPick}
               onRemovePick={handleRemovePick}
-              onExclude={handleExclude}
               picksMutating={updatePicksMutation.isPending}
-              exclusionsMutating={updateExclusionsMutation.isPending}
             />
           ))}
         </div>
@@ -518,9 +502,7 @@ function CardItem({
   isPicked,
   onAddPick,
   onRemovePick,
-  onExclude,
   picksMutating,
-  exclusionsMutating,
 }: {
   card: TCGdexCardWithSet;
   draftMode: boolean;
@@ -528,9 +510,7 @@ function CardItem({
   isPicked?: boolean;
   onAddPick?: (cardId: string) => void;
   onRemovePick?: (cardId: string) => void;
-  onExclude?: (cardId: string) => void;
   picksMutating?: boolean;
-  exclusionsMutating?: boolean;
 }) {
   const imgUrl = getCardImageUrl(card, "small");
   const showDraftActions = draftMode && isEditor;
@@ -574,32 +554,18 @@ function CardItem({
               <Minus className="h-4 w-4" />
             </button>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onAddPick?.(card.id);
-                }}
-                disabled={picksMutating}
-                className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50 transition"
-                title="Add to draft pool"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onExclude?.(card.id);
-                }}
-                disabled={exclusionsMutating}
-                className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 transition"
-                title="Exclude from evolution & shop"
-              >
-                <Ban className="h-4 w-4" />
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onAddPick?.(card.id);
+              }}
+              disabled={picksMutating}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50 transition"
+              title="Add to draft pool"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
           )}
         </div>
       )}

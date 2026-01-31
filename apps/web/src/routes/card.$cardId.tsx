@@ -123,6 +123,7 @@ function CardDetailPage() {
           Boolean(c.image),
       )
     : [];
+  const hasEvolvesTo = evolvesToMatches.length > 0;
   const evolvesFromMatches = evolutionData?.evolvesFromName
     ? allCards.filter(
         (c) =>
@@ -184,19 +185,21 @@ function CardDetailPage() {
                 </p>
               ) : (
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    variant={isPick ? "outline" : "primary"}
-                    size="sm"
-                    onClick={() => {
-                      const picks = draftPool?.picks ?? [];
-                      const next = isPick
-                        ? picks.filter((pick) => pick.id !== card.id)
-                        : [...picks, card];
-                      updatePicksMutation.mutate(next.map((pick) => pick.id));
-                    }}
-                  >
-                    {isPick ? "Remove from picks" : "Add to picks"}
-                  </Button>
+                  {(isPick || !hasEvolvesTo) && (
+                    <Button
+                      variant={isPick ? "outline" : "primary"}
+                      size="sm"
+                      onClick={() => {
+                        const picks = draftPool?.picks ?? [];
+                        const next = isPick
+                          ? picks.filter((pick) => pick.id !== card.id)
+                          : [...picks, card];
+                        updatePicksMutation.mutate(next.map((pick) => pick.id));
+                      }}
+                    >
+                      {isPick ? "Remove from picks" : "Add to picks"}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -209,7 +212,8 @@ function CardDetailPage() {
                       updateExclusionsMutation.mutate(next);
                     }}
                   >
-                    {exclusion?.scope === "evolution" || exclusion?.scope === "both"
+                    {exclusion?.scope === "evolution" ||
+                    exclusion?.scope === "both"
                       ? "Undo evolution exclusion"
                       : "Exclude from evolutions"}
                   </Button>
@@ -225,7 +229,8 @@ function CardDetailPage() {
                       updateExclusionsMutation.mutate(next);
                     }}
                   >
-                    {exclusion?.scope === "shop" || exclusion?.scope === "both"
+                    {exclusion?.scope === "shop" ||
+                    exclusion?.scope === "both"
                       ? "Undo shop exclusion"
                       : "Exclude from shop"}
                   </Button>

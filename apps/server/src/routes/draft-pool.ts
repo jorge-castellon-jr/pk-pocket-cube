@@ -372,6 +372,9 @@ async function buildGeneratedLists({
   });
 
   const pickIds = new Set(picks.map((pick) => pick.id));
+  const pickNormalizedNames = new Set(
+    picks.map((pick) => normalizePokemonName(pick.name)),
+  );
   const evolutionCache = new Map<string, string[]>();
   const evolutionsByPick: Record<string, DraftPoolCard[]> = {};
   const shopByPick: Record<string, DraftPoolCard[]> = {};
@@ -386,10 +389,14 @@ async function buildGeneratedLists({
       const evolutionCards = chainNames.flatMap(
         (name) => cardsByNormalizedName.get(name) ?? [],
       );
-      evolutionsByPick[pick.id] = uniqueCards(evolutionCards).filter(
-        (card) =>
-          !pickIds.has(card.id) && !excludedEvolution.has(card.id),
-      );
+      evolutionsByPick[pick.id] = uniqueCards(evolutionCards)
+        .filter(
+          (card) =>
+            !pickIds.has(card.id) && !excludedEvolution.has(card.id),
+        )
+        .filter(
+          (card) => !pickNormalizedNames.has(normalizePokemonName(card.name)),
+        );
 
       const shopCandidates = cardsByNormalizedName.get(normalizedName) ?? [];
       shopByPick[pick.id] = shopCandidates
