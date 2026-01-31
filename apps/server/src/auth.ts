@@ -19,7 +19,14 @@ export function getAuth(env: Env) {
         redirectURI: `${env.VITE_SERVER_URL}/api/auth/callback/discord`,
       },
     },
-    trustedOrigins: [env.WEB_URL],
+    trustedOrigins: [
+      env.WEB_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174",
+      "https://pocket.castellon.dev",
+    ].filter(Boolean),
   });
 }
 
