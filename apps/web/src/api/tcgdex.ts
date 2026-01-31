@@ -16,6 +16,7 @@ export interface TCGdexCardWithSet extends TCGdexCardBrief {
   setId: string;
   setName: string;
   rarity?: string;
+  types?: string[];
 }
 
 export interface TCGdexCardDetail extends TCGdexCardBrief {
@@ -95,6 +96,34 @@ export async function fetchTCGPocketCardById(
     throw new Error(`TCG Pocket card failed: ${res.status}`);
   }
   return res.json();
+}
+
+const TYPES_BATCH_SIZE = 25;
+
+/** Fetch types for many cards in batches. Returns id -> lowercase type slugs. Used when list API omits types. */
+export async function fetchTypesForCardIds(
+  cardIds: string[]
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  for (let i = 0; i < cardIds.length; i += TYPES_BATCH_SIZE) {
+    const batch = cardIds.slice(i, i + TYPES_BATCH_SIZE);
+    const details = await Promise.all(
+      batch.map((id) =>
+        fetchTCGPocketCardById(id).catch(() => null)
+      )
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const d = details[j];
+      const types = d?.types;
+      out[batch[j]] = Array.isArray(types)
+        ? types
+            .map((x) => (typeof x === "string" ? x : (x as { name?: string }).name ?? ""))
+            .filter(Boolean)
+            .map((s) => s.toLowerCase())
+        : [];
+    }
+  }
+  return out;
 }
 
 export async function fetchEvolutionData(

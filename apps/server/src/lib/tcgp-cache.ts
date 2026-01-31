@@ -61,6 +61,7 @@ export type CachedCardForList = {
   setId: string;
   setName: string;
   rarity?: string;
+  types?: string[];
 };
 
 export async function getCachedCards(
@@ -84,6 +85,8 @@ export async function getCachedCards(
       localId?: string;
       image?: string;
       set?: { id: string; name: string };
+      rarity?: string;
+      types?: string[];
     };
     if (!options.includeNoImage && !data.image) continue;
     const setId = data.set?.id ?? cardIdToSetId.get(data.id) ?? "";
@@ -95,7 +98,8 @@ export async function getCachedCards(
       image: data.image,
       setId,
       setName,
-      rarity: (data as { rarity?: string }).rarity,
+      rarity: data.rarity,
+      types: data.types,
     });
   }
   return cards;

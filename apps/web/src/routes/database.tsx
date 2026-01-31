@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import {
   fetchAllTCGPocketCards,
   fetchTCGPocketSets,
+  fetchTypesForCardIds,
   getCardImageUrl,
   type TCGdexCardWithSet,
   type TCGdexSetListItem,
@@ -17,11 +19,68 @@ import { Button } from "@repo/ui/button";
 import { z } from "zod";
 import { Diamond, Star, Crown, Sparkles, Plus, Minus, Ban } from "lucide-react";
 
+const ENERGY_TYPES = [
+  "grass",
+  "fire",
+  "water",
+  "lightning",
+  "psychic",
+  "fighting",
+  "darkness",
+  "metal",
+  "dragon",
+  "colorless",
+] as const;
+
+function parseColorsParam(colors: string | undefined): string[] {
+  if (!colors || typeof colors !== "string") return [];
+  return colors
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s && ENERGY_TYPES.includes(s as (typeof ENERGY_TYPES)[number]));
+}
+
+function parseRaritiesParam(rarities: string | undefined): string[] {
+  if (!rarities || typeof rarities !== "string") return [];
+  return rarities
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Normalize card.types to lowercase string[]; use typesMap when list API omits types. */
+function getCardTypeSlugs(
+  card: TCGdexCardWithSet,
+  typesMap?: Record<string, string[]>
+): string[] {
+  const fromMap = typesMap?.[card.id];
+  if (fromMap != null) return fromMap;
+  const t = card.types;
+  if (!t || !Array.isArray(t)) return [];
+  return t
+    .map((x) => (typeof x === "string" ? x : (x as { name?: string }).name ?? ""))
+    .filter(Boolean)
+    .map((s) => s.toLowerCase());
+}
+
+function cardMatchesColors(
+  card: TCGdexCardWithSet,
+  selectedColors: string[],
+  typesMap?: Record<string, string[]>
+): boolean {
+  const cardTypes = getCardTypeSlugs(card, typesMap);
+  const hasNoTypes = cardTypes.length === 0;
+  if (hasNoTypes)
+    return selectedColors.includes("colorless");
+  return cardTypes.some((slug) => selectedColors.includes(slug));
+}
+
 const searchSchema = z.object({
   set: z.string().optional(),
   sort: z.enum(["name", "set", "id"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
-  rarity: z.string().optional(),
+  rarities: z.string().optional(),
+  colors: z.string().optional(),
   q: z.string().optional(),
   draftMode: z.string().optional(),
 });
@@ -38,7 +97,8 @@ function DatabasePage() {
   const selectedSet = search.set ?? "all";
   const sortBy = search.sort ?? "id";
   const sortOrder = search.order ?? "asc";
-  const selectedRarity = search.rarity ?? "all";
+  const selectedRarities = parseRaritiesParam(search.rarities);
+  const selectedColors = parseColorsParam(search.colors);
   const searchQuery = search.q ?? "";
   const isDraftMode = search.draftMode === "1";
 
@@ -113,6 +173,17 @@ function DatabasePage() {
   }
 
   const cards = cardsQuery.data ?? [];
+  const cardIds = useMemo(() => cards.map((c) => c.id).sort(), [cards]);
+  const listHasNoTypes =
+    cards.length > 0 &&
+    cards.slice(0, 5).every((c) => !c.types?.length);
+  const typesQuery = useQuery({
+    queryKey: ["tcgpocket", "card-types", cardIds],
+    queryFn: () => fetchTypesForCardIds(cardIds),
+    enabled: listHasNoTypes && cardIds.length > 0,
+    staleTime: 1000 * 60 * 30,
+  });
+  const typesMap = typesQuery.data ?? {};
   const sets = setsQuery.data ?? [];
   const totalCards = sets.reduce(
     (sum, set) => sum + (set.cardCount?.total ?? 0),
@@ -130,19 +201,24 @@ function DatabasePage() {
     )
   ).sort((a, b) => a.localeCompare(b));
   const sortedRarities = sortRarities(rarityOptions);
-  const effectiveRarity =
-    sortedRarities.length > 0 ? selectedRarity : "all";
   const rarityFiltered =
-    effectiveRarity === "all"
+    selectedRarities.length === 0
       ? filteredCards
-      : filteredCards.filter(
-          (card) =>
-            card.rarity?.toLowerCase() === effectiveRarity.toLowerCase()
+      : filteredCards.filter((card) =>
+          selectedRarities.some(
+            (r) => card.rarity?.toLowerCase() === r.toLowerCase()
+          )
+        );
+  const colorFiltered =
+    selectedColors.length === 0
+      ? rarityFiltered
+      : rarityFiltered.filter((card) =>
+          cardMatchesColors(card, selectedColors, typesMap)
         );
   const searchFiltered =
     searchQuery.trim().length === 0
-      ? rarityFiltered
-      : rarityFiltered.filter((card) => {
+      ? colorFiltered
+      : colorFiltered.filter((card) => {
           const q = searchQuery.toLowerCase();
           return (
             card.name.toLowerCase().includes(q) ||
@@ -173,6 +249,11 @@ function DatabasePage() {
           </div>
           <span className="text-sm text-white/70 tabular-nums">
             {sortedCards.length} cards
+            {listHasNoTypes &&
+              typesQuery.isFetching &&
+              selectedColors.length > 0 && (
+                <span className="ml-2 text-yellow-200/80">(loading types…)</span>
+              )}
           </span>
         </div>
       </header>
@@ -234,13 +315,10 @@ function DatabasePage() {
                 <div className="flex flex-wrap gap-2">
                   <RarityChip
                     rarity="all"
-                    selected={effectiveRarity === "all"}
-                    onSelect={(value) =>
+                    selected={selectedRarities.length === 0}
+                    onSelect={() =>
                       navigate({
-                        search: (prev) => ({
-                          ...prev,
-                          rarity: value === "all" ? undefined : value,
-                        }),
+                        search: (prev) => ({ ...prev, rarities: undefined }),
                       })
                     }
                   />
@@ -248,15 +326,57 @@ function DatabasePage() {
                     <RarityChip
                       key={rarity}
                       rarity={rarity}
-                      selected={effectiveRarity === rarity}
-                      onSelect={(value) =>
+                      selected={selectedRarities.some(
+                        (r) => r.toLowerCase() === rarity.toLowerCase()
+                      )}
+                      onSelect={() => {
+                        const next = selectedRarities.some(
+                          (r) => r.toLowerCase() === rarity.toLowerCase()
+                        )
+                          ? selectedRarities.filter(
+                              (r) => r.toLowerCase() !== rarity.toLowerCase()
+                            )
+                          : [...selectedRarities, rarity];
                         navigate({
                           search: (prev) => ({
                             ...prev,
-                            rarity: value,
+                            rarities:
+                              next.length > 0 ? next.join(",") : undefined,
                           }),
-                        })
-                      }
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-white/60 uppercase tracking-wider">
+                    Color
+                  </span>
+                  <ColorChip
+                    color="all"
+                    selected={selectedColors.length === 0}
+                    onSelect={() =>
+                      navigate({
+                        search: (prev) => ({ ...prev, colors: undefined }),
+                      })
+                    }
+                  />
+                  {ENERGY_TYPES.map((color) => (
+                    <ColorChip
+                      key={color}
+                      color={color}
+                      selected={selectedColors.includes(color)}
+                      onSelect={() => {
+                        const next = selectedColors.includes(color)
+                          ? selectedColors.filter((c) => c !== color)
+                          : [...selectedColors, color];
+                        navigate({
+                          search: (prev) => ({
+                            ...prev,
+                            colors: next.length > 0 ? next.join(",") : undefined,
+                          }),
+                        });
+                      }}
                     />
                   ))}
                 </div>
@@ -487,6 +607,67 @@ function CardItem({
   );
 }
 
+function getColorChipClass(color: string, selected: boolean) {
+  if (color === "all") {
+    return selected
+      ? "border-yellow-200/70 bg-yellow-200/15 text-yellow-100"
+      : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10";
+  }
+  const base = (() => {
+    const n = color.toLowerCase();
+    switch (n) {
+      case "grass":
+        return "border-emerald-300/50 bg-emerald-400/20 text-emerald-200";
+      case "fire":
+        return "border-orange-300/50 bg-orange-400/20 text-orange-200";
+      case "water":
+        return "border-sky-300/50 bg-sky-400/20 text-sky-200";
+      case "lightning":
+        return "border-yellow-300/60 bg-yellow-300/25 text-yellow-200";
+      case "psychic":
+        return "border-fuchsia-300/50 bg-fuchsia-400/20 text-fuchsia-200";
+      case "fighting":
+        return "border-amber-300/50 bg-amber-400/20 text-amber-200";
+      case "darkness":
+        return "border-slate-400/60 bg-slate-500/25 text-slate-200";
+      case "metal":
+        return "border-zinc-300/60 bg-zinc-300/25 text-zinc-200";
+      case "dragon":
+        return "border-rose-300/50 bg-rose-400/20 text-rose-200";
+      case "colorless":
+        return "border-white/40 bg-white/20 text-white/90";
+      default:
+        return "border-white/30 bg-white/15 text-white/70";
+    }
+  })();
+  return selected ? `${base} ring-1 ring-white/30` : base;
+}
+
+function ColorChip({
+  color,
+  selected,
+  onSelect,
+}: {
+  color: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const label =
+    color === "all" ? "All" : color.charAt(0).toUpperCase() + color.slice(1);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.15em] transition ${getColorChipClass(
+        color,
+        selected
+      )}`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function RarityChip({
   rarity,
   selected,
@@ -494,14 +675,14 @@ function RarityChip({
 }: {
   rarity: string;
   selected: boolean;
-  onSelect: (rarity: string) => void;
+  onSelect: () => void;
 }) {
   const parsed = parseRarity(rarity);
   const isAll = rarity === "all";
   return (
     <button
       type="button"
-      onClick={() => onSelect(rarity)}
+      onClick={onSelect}
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] transition ${
         selected
           ? "border-yellow-200/70 bg-yellow-200/15 text-yellow-100"
