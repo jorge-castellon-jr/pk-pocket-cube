@@ -97,6 +97,12 @@ function LoginPage() {
             <Link to="/" className="text-white/70 hover:text-white text-sm">
               ← Home
             </Link>
+            <Link
+              to="/admin/cache"
+              className="text-white/70 hover:text-white text-sm"
+            >
+              Admin cache
+            </Link>
           </div>
         </header>
         <main className="max-w-2xl mx-auto px-4 py-16 flex flex-col items-center gap-8">
